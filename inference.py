@@ -6,7 +6,7 @@ import os
 
 class InferModel:
     def __init__(self, model, state_scaler, diff_scaler, control_scaler, base_scaler, phy_model,
-                 visualizer=None, log_dir='./logs'):
+                 visualizer=None, log_dir='./logs', device=None):
         self.model = model
         self.state_scaler = state_scaler
         self.diff_scaler = diff_scaler
@@ -15,6 +15,13 @@ class InferModel:
         self.phy_model = phy_model
         self.visualizer = visualizer
         self.model.eval()
+        
+        if device is None:
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        else:
+            self.device = device
+        
+        self.model.to(self.device)
 
         self.log_dir = log_dir
         if not os.path.exists(log_dir):

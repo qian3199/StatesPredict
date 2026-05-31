@@ -76,7 +76,8 @@ def run_training():
         lr=5e-5,  # 降低学习率
         weight_decay=1e-3,  # 增加权重衰减（正则化）
         visualizer=visualizer,
-        log_dir=output_dir
+        log_dir=output_dir,
+        device=device
     )
     
     # 全力训练50个epochs

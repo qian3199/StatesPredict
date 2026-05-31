@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 
 class Trainer:
-    def __init__(self, model, state_scaler, diff_scaler, lr=1e-4, weight_decay=1e-5, visualizer=None, log_dir='./logs'):
+    def __init__(self, model, state_scaler, diff_scaler, lr=1e-4, weight_decay=1e-5, visualizer=None, log_dir='./logs', device=None):
         self.model = model
         self.state_scaler = state_scaler
         self.diff_scaler = diff_scaler
@@ -19,6 +19,13 @@ class Trainer:
         self.optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
         self.smooth_l1_loss = nn.SmoothL1Loss(reduction='none')
         self.mse_loss = nn.MSELoss(reduction='none')
+        
+        if device is None:
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        else:
+            self.device = device
+        
+        self.model.to(self.device)
 
         self.log_dir = log_dir
         if not os.path.exists(log_dir):
@@ -125,6 +132,13 @@ class Trainer:
     def train_step(self, hist_state, hist_control, base_norm, cfg_tensor, gt_norm, diff_norm):
         self.model.train()
         self.optimizer.zero_grad()
+        
+        hist_state = hist_state.to(self.device)
+        hist_control = hist_control.to(self.device)
+        base_norm = base_norm.to(self.device)
+        cfg_tensor = cfg_tensor.to(self.device)
+        gt_norm = gt_norm.to(self.device)
+        diff_norm = diff_norm.to(self.device)
 
         delta_norm, corrected_norm = self.model(hist_state, hist_control, base_norm, cfg_tensor, gt_norm)
 
@@ -157,6 +171,13 @@ class Trainer:
 
         with torch.no_grad():
             for i, (hist_state, hist_control, base_norm, cfg_tensor, gt_norm, diff_norm, future_pos) in enumerate(val_loader):
+                hist_state = hist_state.to(self.device)
+                hist_control = hist_control.to(self.device)
+                base_norm = base_norm.to(self.device)
+                cfg_tensor = cfg_tensor.to(self.device)
+                gt_norm = gt_norm.to(self.device)
+                diff_norm = diff_norm.to(self.device)
+                
                 delta_norm, corrected_norm = self.model(hist_state, hist_control, base_norm, cfg_tensor)
 
                 cascade_loss, _, _ = self.compute_cascade_loss(
