@@ -13,6 +13,8 @@ from model import DyTR_LSTM
 from dataset import TimeSeriesDataset
 from trainer import Trainer
 from visualizer import VisualUtils
+script_dir = os.path.dirname(os.path.abspath(__file__))
+os.chdir(script_dir)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -80,12 +82,12 @@ def run_training():
         device=device
     )
     
-    # 全力训练50个epochs
+    # 全力训练2个epochs快速测试
     results = trainer.train(
         train_loader=train_loader,
         val_loader=val_loader,
-        epochs=50,
-        log_interval=5
+        epochs=2,
+        log_interval=1
     )
     
     logger.info(f"Training completed! Best val loss: {results['best_val_loss']:.4f} at epoch {results['best_epoch']}")
