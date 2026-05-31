@@ -87,7 +87,7 @@ def run_training():
     results = trainer.train(
         train_loader=train_loader,
         val_loader=val_loader,
-        epochs=2,
+        epochs=50,
         log_interval=1
     )
     
