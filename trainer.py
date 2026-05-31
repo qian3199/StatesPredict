@@ -309,8 +309,10 @@ class Trainer:
 
         base_error = torch.sqrt((base_real - gt_real)**2).mean().item()
         corr_error = torch.sqrt((base_pred - gt_real)**2).mean().item()
+        base_mse = torch.mean((base_real - gt_real) ** 2).item()
+        corr_mse = torch.mean((base_pred - gt_real) ** 2).item()
 
-        self.logger.info(f"  Base Error: {base_error:.6f} | Corrected Error: {corr_error:.6f} | Better: {corr_error < base_error}")
+        self.logger.info(f"  Base RMSE: {base_error:.8f} | Net RMSE: {corr_error:.8f} | Base MSE: {base_mse:.10f} | Net MSE: {corr_mse:.10f} | Better: {corr_mse < base_mse}")
 
         batch_size = base_pred.size(0)
         num_samples = min(batch_size, 50)
@@ -387,12 +389,20 @@ class Trainer:
 
             avg_train_loss = np.mean([l['total_loss'] for l in train_losses])
             avg_cascade = np.mean([l['cascade_loss'] for l in train_losses])
+            avg_mse = np.mean([l['mse_loss'] for l in train_losses])
+            avg_r2 = np.mean([l['r2_score'] for l in train_losses])
+            avg_base_mse = np.mean([l['base_mse'] for l in train_losses])
+            avg_pred_mse = np.mean([l['pred_mse'] for l in train_losses])
             self.train_losses.append(avg_train_loss)
 
             is_best = False
             if val_loader is not None:
                 val_results = self.validate(val_loader)
                 val_loss = val_results['val_loss']
+                val_mse = val_results['val_mse']
+                val_r2 = val_results['val_r2']
+                val_base_mse = val_results['val_base_mse']
+                val_pred_mse = val_results['val_pred_mse']
                 self.val_losses.append(val_loss)
 
                 if val_loss < best_val_loss:
@@ -400,15 +410,24 @@ class Trainer:
                     best_epoch = epoch
                     is_best = True
                     torch.save(self.model.state_dict(), 'best_model.pth')
+                    self.logger.info(f"  New best model saved! Base MSE: {val_base_mse:.8f} | Net MSE: {val_pred_mse:.8f} | Improvement: {(val_base_mse - val_pred_mse):.8f}")
 
                     if self.visualizer is not None:
                         self.plot_validation_comparison(val_results['val_batch_data'], epoch)
 
-                log_msg = f"[Epoch {epoch}] Train Loss: {avg_train_loss:.4f} | Val Loss: {val_loss:.4f} | Best: {best_val_loss:.4f} (Epoch {best_epoch})"
+                log_msg = (f"[Epoch {epoch}] Train Loss: {avg_train_loss:.6f} | Val Loss: {val_loss:.6f} | "
+                          f"MSE: {val_mse:.8f} | R2: {val_r2:.6f} | "
+                          f"Base MSE: {val_base_mse:.8f} | Net MSE: {val_pred_mse:.8f} | "
+                          f"Best: {best_val_loss:.6f} (Epoch {best_epoch})")
                 self.logger.info(log_msg)
             else:
-                log_msg = f"[Epoch {epoch}] Train Loss: {avg_train_loss:.4f} | Best: {avg_train_loss:.4f}"
+                log_msg = (f"[Epoch {epoch}] Train Loss: {avg_train_loss:.6f} | "
+                          f"MSE: {avg_mse:.8f} | R2: {avg_r2:.6f} | "
+                          f"Base MSE: {avg_base_mse:.8f} | Net MSE: {avg_pred_mse:.8f}")
                 self.logger.info(log_msg)
+
+        if val_loader is not None and self.visualizer is not None:
+            self.plot_final_comparison(val_loader, best_epoch)
 
         if self.visualizer is not None:
             self.visualizer.plot_loss_curve(self.train_losses, self.val_losses, 'loss_curve.png')
@@ -421,6 +440,123 @@ class Trainer:
             'best_val_loss': best_val_loss,
             'best_epoch': best_epoch
         }
+
+    def plot_final_comparison(self, val_loader, best_epoch):
+        self.logger.info("\n" + "="*80)
+        self.logger.info("Generating final error comparison between Base and Net predictions...")
+        
+        self.model.eval()
+        
+        all_base_errors = []
+        all_net_errors = []
+        all_base_mse = []
+        all_net_mse = []
+        
+        with torch.no_grad():
+            for batch_idx, (hist_state, hist_control, base_norm, cfg_tensor, gt_norm, diff_norm, future_pos) in enumerate(val_loader):
+                hist_state = hist_state.to(self.device)
+                hist_control = hist_control.to(self.device)
+                base_norm = base_norm.to(self.device)
+                cfg_tensor = cfg_tensor.to(self.device)
+                gt_norm = gt_norm.to(self.device)
+                
+                delta_norm, corrected_norm = self.model(hist_state, hist_control, base_norm, cfg_tensor)
+                
+                base_real = self.denormalize_state(base_norm)
+                gt_real = self.denormalize_state(gt_norm)
+                net_real = base_real + self.denormalize_diff(delta_norm)
+                
+                base_rmse = torch.sqrt(torch.mean((base_real - gt_real) ** 2, dim=[1, 2])).cpu().numpy()
+                net_rmse = torch.sqrt(torch.mean((net_real - gt_real) ** 2, dim=[1, 2])).cpu().numpy()
+                
+                base_mse = torch.mean((base_real - gt_real) ** 2, dim=[1, 2]).cpu().numpy()
+                net_mse = torch.mean((net_real - gt_real) ** 2, dim=[1, 2]).cpu().numpy()
+                
+                all_base_errors.extend(base_rmse.tolist())
+                all_net_errors.extend(net_rmse.tolist())
+                all_base_mse.extend(base_mse.tolist())
+                all_net_mse.extend(net_mse.tolist())
+        
+        all_base_errors = np.array(all_base_errors)
+        all_net_errors = np.array(all_net_errors)
+        all_base_mse = np.array(all_base_mse)
+        all_net_mse = np.array(all_net_mse)
+        
+        improvement = all_base_mse - all_net_mse
+        improvement_ratio = (all_base_mse - all_net_mse) / (all_base_mse + 1e-8) * 100
+        
+        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+        
+        ax1 = axes[0, 0]
+        ax1.plot(all_base_errors, 'b-', alpha=0.5, label='Base RMSE', linewidth=0.5)
+        ax1.plot(all_net_errors, 'r-', alpha=0.5, label='Net RMSE', linewidth=0.5)
+        ax1.set_xlabel('Sample Index')
+        ax1.set_ylabel('RMSE')
+        ax1.set_title('RMSE Comparison: Base vs Net (per sample)')
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+        
+        ax2 = axes[0, 1]
+        ax2.hist(all_base_errors, bins=50, alpha=0.5, label='Base RMSE', color='blue')
+        ax2.hist(all_net_errors, bins=50, alpha=0.5, label='Net RMSE', color='red')
+        ax2.set_xlabel('RMSE')
+        ax2.set_ylabel('Frequency')
+        ax2.set_title('RMSE Distribution')
+        ax2.legend()
+        ax2.grid(True, alpha=0.3)
+        
+        ax3 = axes[1, 0]
+        indices = np.arange(len(improvement))
+        ax3.bar(indices, improvement, alpha=0.7, color='green')
+        ax3.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
+        ax3.set_xlabel('Sample Index')
+        ax3.set_ylabel('MSE Improvement (Base - Net)')
+        ax3.set_title('MSE Improvement per Sample')
+        ax3.grid(True, alpha=0.3)
+        
+        ax4 = axes[1, 1]
+        ax4.scatter(all_base_mse, all_net_mse, alpha=0.3, s=10)
+        max_val = max(np.max(all_base_mse), np.max(all_net_mse))
+        ax4.plot([0, max_val], [0, max_val], 'r--', label='y=x (No improvement)')
+        ax4.set_xlabel('Base MSE')
+        ax4.set_ylabel('Net MSE')
+        ax4.set_title('Base MSE vs Net MSE')
+        ax4.legend()
+        ax4.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        
+        save_path = os.path.join(self.log_dir, 'final_error_comparison.png')
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        plt.close()
+        
+        self.logger.info(f"\nFinal Error Comparison Summary:")
+        self.logger.info(f"{'='*80}")
+        self.logger.info(f"Base  - Mean RMSE: {np.mean(all_base_errors):.8f}, Mean MSE: {np.mean(all_base_mse):.8f}")
+        self.logger.info(f"Net   - Mean RMSE: {np.mean(all_net_errors):.8f}, Mean MSE: {np.mean(all_net_mse):.8f}")
+        self.logger.info(f"Improvement - Mean MSE reduction: {np.mean(improvement):.8f} ({np.mean(improvement_ratio):.2f}%)")
+        self.logger.info(f"Best model from Epoch: {best_epoch}")
+        self.logger.info(f"Comparison plot saved to: {save_path}")
+        self.logger.info(f"{'='*80}\n")
+        
+        results_df = {
+            'sample_idx': np.arange(len(all_base_errors)),
+            'base_rmse': all_base_errors,
+            'net_rmse': all_net_errors,
+            'base_mse': all_base_mse,
+            'net_mse': all_net_mse,
+            'mse_improvement': improvement,
+            'improvement_ratio_%': improvement_ratio
+        }
+        
+        csv_path = os.path.join(self.log_dir, 'error_comparison_results.csv')
+        try:
+            import pandas as pd
+            df = pd.DataFrame(results_df)
+            df.to_csv(csv_path, index=False)
+            self.logger.info(f"Error comparison results saved to: {csv_path}")
+        except ImportError:
+            self.logger.warning("pandas not available, skipping CSV export")
 
 
 if __name__ == "__main__":
