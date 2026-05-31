@@ -13,8 +13,6 @@ from model import DyTR_LSTM
 from dataset import TimeSeriesDataset
 from trainer import Trainer
 from visualizer import VisualUtils
-script_dir = os.path.dirname(os.path.abspath(__file__))
-os.chdir(script_dir)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -30,7 +28,7 @@ def run_training():
     logger.info(f"Found {len(pkl_files)} files in {data_dir}")
     
     # 只用前50个文件快速训练
-    n_files = 50
+    n_files = 500
     n_train = int(n_files * 0.8)
     train_files = pkl_files[:n_train]
     val_files = pkl_files[n_train:n_files]
@@ -65,7 +63,6 @@ def run_training():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_dir = f'./outputs/{timestamp}_DyTR_LSTM'
     os.makedirs(output_dir, exist_ok=True)
-    print(f"Output directory: {output_dir}")
     
     visualizer = VisualUtils(
         state_names=['vlon', 'vlat', 'yaw', 'omega'],
@@ -83,12 +80,12 @@ def run_training():
         device=device
     )
     
-    # 全力训练2个epochs快速测试
+    # 全力训练50个epochs
     results = trainer.train(
         train_loader=train_loader,
         val_loader=val_loader,
         epochs=50,
-        log_interval=1
+        log_interval=5
     )
     
     logger.info(f"Training completed! Best val loss: {results['best_val_loss']:.4f} at epoch {results['best_epoch']}")

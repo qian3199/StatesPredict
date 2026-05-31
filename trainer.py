@@ -8,8 +8,6 @@ import os
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-script_dir = os.path.dirname(os.path.abspath(__file__))
-os.chdir(script_dir)
 
 
 class Trainer:
@@ -108,28 +106,29 @@ class Trainer:
         base_real = self.denormalize_state(base_norm)
         delta_real = self.denormalize_diff(delta_norm)
 
-        # 残差网络：直接 base + delta，不加多余的混合权重
         final_pred = base_real + delta_real
         
-        # ====== 1. 状态预测误差 ======
         pred_loss = torch.abs(final_pred - gt_real).mean()
-        
-        # ====== 2. XY轨迹误差（直接优化轨迹！）======
         traj_loss = self.compute_trajectory_loss(final_pred, gt_real)
-        
-        # ====== 3. 关键约束：net的delta不能太大！======
         delta_reg_loss = torch.abs(delta_real).mean()
         
-        # ====== 4. 对比base和corrected，确保corrected不能比base差 ======
         base_error = torch.abs(base_real - gt_real).mean()
         corr_error = torch.abs(final_pred - gt_real).mean()
         diff_constraint = torch.max(torch.tensor(0.0, device=final_pred.device), corr_error - base_error)
 
-        # ====== 5. 综合损失 ======
-        # 增加轨迹损失的权重，让模型更关注轨迹精度
         cascade_loss = pred_loss * 5.0 + traj_loss * 20.0 + delta_reg_loss * 5.0 + diff_constraint * 50.0
-
-        return cascade_loss, pred_loss, traj_loss
+        
+        mse_loss = torch.mean((final_pred - gt_real) ** 2)
+        
+        gt_mean = torch.mean(gt_real, dim=1, keepdim=True)
+        ss_tot = torch.sum((gt_real - gt_mean) ** 2, dim=[1, 2])
+        ss_res = torch.sum((final_pred - gt_real) ** 2, dim=[1, 2])
+        r2_score = torch.mean(1 - ss_res / (ss_tot + 1e-8))
+        
+        base_mse = torch.mean((base_real - gt_real) ** 2)
+        pred_mse = torch.mean((final_pred - gt_real) ** 2)
+        
+        return cascade_loss, pred_loss, traj_loss, mse_loss, r2_score, base_mse, pred_mse
 
     def train_step(self, hist_state, hist_control, base_norm, cfg_tensor, gt_norm, diff_norm):
         self.model.train()
@@ -144,7 +143,7 @@ class Trainer:
 
         delta_norm, corrected_norm = self.model(hist_state, hist_control, base_norm, cfg_tensor, gt_norm)
 
-        cascade_loss, v_lat_loss, ade_loss = self.compute_cascade_loss(
+        cascade_loss, v_lat_loss, ade_loss, mse_loss, r2_score, base_mse, pred_mse = self.compute_cascade_loss(
             corrected_norm, gt_norm, base_norm, delta_norm, weights=[0.1, 0.1, 0.1, 0.1], warm_up=0
         )
 
@@ -161,6 +160,10 @@ class Trainer:
             'cascade_loss': cascade_loss.item(),
             'v_lat_loss': v_lat_loss.item(),
             'ade_loss': ade_loss.item(),
+            'mse_loss': mse_loss.item(),
+            'r2_score': r2_score.item(),
+            'base_mse': base_mse.item(),
+            'pred_mse': pred_mse.item(),
             'delta_mse': delta_mse.item()
         }
 
@@ -168,6 +171,10 @@ class Trainer:
         self.model.eval()
         total_loss = 0.0
         total_cascade = 0.0
+        total_mse = 0.0
+        total_r2 = 0.0
+        total_base_mse = 0.0
+        total_pred_mse = 0.0
         count = 0
         val_batch_data = None
 
@@ -182,12 +189,16 @@ class Trainer:
                 
                 delta_norm, corrected_norm = self.model(hist_state, hist_control, base_norm, cfg_tensor)
 
-                cascade_loss, _, _ = self.compute_cascade_loss(
+                cascade_loss, _, _, mse_loss, r2_score, base_mse, pred_mse = self.compute_cascade_loss(
                     corrected_norm, gt_norm, base_norm, delta_norm, weights=[0.1, 0.1, 0.1, 0.1], warm_up=0
                 )
 
                 total_loss += cascade_loss.item()
                 total_cascade += cascade_loss.item()
+                total_mse += mse_loss.item()
+                total_r2 += r2_score.item()
+                total_base_mse += base_mse.item()
+                total_pred_mse += pred_mse.item()
                 count += 1
 
                 if i == 0:
@@ -206,6 +217,10 @@ class Trainer:
         return {
             'val_loss': total_loss / count,
             'val_cascade': total_cascade / count,
+            'val_mse': total_mse / count,
+            'val_r2': total_r2 / count,
+            'val_base_mse': total_base_mse / count,
+            'val_pred_mse': total_pred_mse / count,
             'val_batch_data': val_batch_data
         }
 
