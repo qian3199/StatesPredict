@@ -65,6 +65,7 @@ def run_training():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_dir = f'./outputs/{timestamp}_DyTR_LSTM'
     os.makedirs(output_dir, exist_ok=True)
+    print(f"Output directory: {output_dir}")
     
     visualizer = VisualUtils(
         state_names=['vlon', 'vlat', 'yaw', 'omega'],
