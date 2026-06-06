@@ -10,7 +10,7 @@ import argparse
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-from model import DyTR_LSTM
+from model import DyTR_LSTM, DyTR_MLP
 from dataset import TimeSeriesDataset
 from trainer import Trainer
 from visualizer import VisualUtils
@@ -23,7 +23,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='DyTR-LSTM 训练脚本')
+    parser = argparse.ArgumentParser(description='DyTR 训练脚本')
+    parser.add_argument('--model', type=str, default='lstm', choices=['lstm', 'mlp'], 
+                        help='选择模型类型: lstm 或 mlp (默认: lstm)')
     parser.add_argument('--epochs', type=int, default=50, help='训练轮数 (默认: 50)')
     parser.add_argument('--n_files', type=int, default=500, help='使用的文件数量 (默认: 500)')
     parser.add_argument('--batch_size', type=int, default=128, help='批次大小 (默认: 128)')
@@ -33,11 +35,31 @@ def parse_args():
     parser.add_argument('--pred_len', type=int, default=1, help='预测序列长度 (默认: 1)')
     parser.add_argument('--step', type=int, default=1, help='采样步长 (默认: 1)')
     parser.add_argument('--data_dir', type=str, default='./data/left_turn_dataset', help='数据目录 (默认: ./data/left_turn_dataset)')
-    parser.add_argument('--output_prefix', type=str, default='DyTR_LSTM', help='输出目录前缀 (默认: DyTR_LSTM)')
+    parser.add_argument('--output_prefix', type=str, default=None, help='输出目录前缀 (默认: 模型名称)')
+    parser.add_argument('--early_stopping', action='store_true', help='启用早停机制 (默认: 禁用)')
+    parser.add_argument('--patience', type=int, default=20, help='早停耐心值 (默认: 20)')
+    parser.add_argument('--min_delta', type=float, default=1e-8, help='早停最小改进阈值 (默认: 1e-8)')
     return parser.parse_args()
 
 def run_training():
     args = parse_args()
+    
+    # 根据参数选择模型
+    model_type = args.model.lower()
+    if model_type == 'lstm':
+        ModelClass = DyTR_LSTM
+        model_name = 'DyTR_LSTM'
+    elif model_type == 'mlp':
+        ModelClass = DyTR_MLP
+        model_name = 'DyTR_MLP'
+    else:
+        raise ValueError(f"未知模型类型: {model_type}")
+    
+    # 设置输出目录前缀
+    if args.output_prefix is None:
+        output_prefix = model_name
+    else:
+        output_prefix = args.output_prefix
     
     data_dir = args.data_dir
     pkl_files = sorted(glob.glob(os.path.join(data_dir, '*.pkl')))
@@ -70,13 +92,19 @@ def run_training():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logger.info(f"Using device: {device}")
     
-    model = DyTR_LSTM().to(device)
+    # 创建所选模型
+    model = ModelClass(hist_len=hist_len, pred_len=pred_len).to(device)
     
     from datetime import datetime
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = f'./outputs/{timestamp}_{args.output_prefix}'
+    output_dir = f'./outputs/{timestamp}_{output_prefix}'
     os.makedirs(output_dir, exist_ok=True)
     print(f"Output directory: {output_dir}")
+    
+    # 将输出目录路径保存到文件，方便后续使用
+    with open('latest_output_dir.txt', 'w') as f:
+        f.write(output_dir)
+    logger.info(f"Output directory path saved to: latest_output_dir.txt")
     
     visualizer = VisualUtils(
         state_names=['vlon', 'vlat', 'yaw', 'omega'],
@@ -91,9 +119,13 @@ def run_training():
         weight_decay=args.weight_decay,
         visualizer=visualizer,
         log_dir=output_dir,
-        device=device
+        device=device,
+        early_stopping=args.early_stopping,
+        patience=args.patience,
+        min_delta=args.min_delta
     )
     
+    logger.info(f"Model: {model_name}")
     logger.info(f"Training config: epochs={args.epochs}, batch_size={args.batch_size}, lr={args.lr}, weight_decay={args.weight_decay}")
     logger.info(f"Data config: n_files={n_files}, hist_len={hist_len}, pred_len={pred_len}, step={step}")
     
@@ -106,8 +138,8 @@ def run_training():
     
     logger.info(f"Training completed! Best val loss: {results['best_val_loss']:.6f} at epoch {results['best_epoch']}")
     
-    torch.save(model.state_dict(), 'left_turn_model.pth')
-    logger.info("Model saved to left_turn_model.pth")
+    torch.save(model.state_dict(), f'{model_name.lower()}_model.pth')
+    logger.info(f"Model saved to {model_name.lower()}_model.pth")
 
 if __name__ == "__main__":
     run_training()

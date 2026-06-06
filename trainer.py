@@ -12,7 +12,8 @@ import matplotlib.pyplot as plt
 
 
 class Trainer:
-    def __init__(self, model, state_scaler, diff_scaler, lr=1e-4, weight_decay=1e-5, visualizer=None, log_dir='./logs', device=None):
+    def __init__(self, model, state_scaler, diff_scaler, lr=1e-4, weight_decay=1e-5, visualizer=None, log_dir='./logs', device=None, 
+                 early_stopping=True, patience=20, min_delta=1e-8):
         self.model = model
         self.state_scaler = state_scaler
         self.diff_scaler = diff_scaler
@@ -52,6 +53,12 @@ class Trainer:
         self.val_times = []
         self.total_train_time = 0.0
         self.model_name = model.__class__.__name__  # 记录模型名称
+        
+        # 早停相关参数
+        self.early_stopping = early_stopping
+        self.patience = patience
+        self.min_delta = min_delta
+        self.patience_counter = 0
 
     def denormalize_state(self, state_norm):
         # 使用tensor操作来保留梯度，不转numpy
@@ -428,15 +435,21 @@ class Trainer:
                 val_pred_mse = val_results['val_pred_mse']
                 self.val_losses.append(val_loss)
 
-                if val_loss < best_val_loss:
+                if val_loss < best_val_loss - self.min_delta:
                     best_val_loss = val_loss
                     best_epoch = epoch
                     is_best = True
+                    self.patience_counter = 0  # 重置耐心计数器
                     torch.save(self.model.state_dict(), 'best_model.pth')
                     self.logger.info(f"  New best model saved! Base MSE: {val_base_mse:.8f} | Net MSE: {val_pred_mse:.8f} | Improvement: {(val_base_mse - val_pred_mse):.8f}")
 
                     if self.visualizer is not None:
                         self.plot_validation_comparison(val_results['val_batch_data'], epoch)
+                else:
+                    # 验证损失没有改善，增加耐心计数器
+                    if self.early_stopping:
+                        self.patience_counter += 1
+                        self.logger.info(f"  Patience counter: {self.patience_counter}/{self.patience}")
 
             # 记录epoch结束时间
             epoch_time = time.time() - epoch_start_time
@@ -459,6 +472,13 @@ class Trainer:
                           f"Base MSE: {avg_base_mse:.8f} | Net MSE: {avg_pred_mse:.8f} | "
                           f"Time: {epoch_time:.2f}s")
                 self.logger.info(log_msg)
+            
+            # 早停检查
+            if self.early_stopping and val_loader is not None:
+                if self.patience_counter >= self.patience:
+                    self.logger.info(f"Early stopping triggered! No improvement in {self.patience} epochs.")
+                    self.logger.info(f"Best validation loss: {best_val_loss:.6f} at epoch {best_epoch}")
+                    break
 
         # 记录总训练结束时间
         total_train_time = time.time() - total_start_time
