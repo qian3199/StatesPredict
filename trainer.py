@@ -5,6 +5,7 @@ import numpy as np
 import pickle
 import logging
 import os
+import time
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -44,6 +45,13 @@ class Trainer:
 
         self.train_losses = []
         self.val_losses = []
+        
+        # 时间记录相关变量
+        self.epoch_times = []
+        self.train_step_times = []
+        self.val_times = []
+        self.total_train_time = 0.0
+        self.model_name = model.__class__.__name__  # 记录模型名称
 
     def denormalize_state(self, state_norm):
         # 使用tensor操作来保留梯度，不转numpy
@@ -378,14 +386,24 @@ class Trainer:
         best_epoch = 0
 
         self.logger.info(f"Training started: {epochs} epochs, lr={self.optimizer.param_groups[0]['lr']}")
+        self.logger.info(f"Model: {self.model_name}")
+        
+        # 记录总训练开始时间
+        total_start_time = time.time()
 
         for epoch in range(epochs):
+            # 记录epoch开始时间
+            epoch_start_time = time.time()
+            
             self.model.teacher_forcing_ratio = max(0.1, 0.5 - epoch * 0.004)
 
             train_losses = []
+            train_step_start = time.time()
             for hist_state, hist_control, base_norm, cfg_tensor, gt_norm, diff_norm, _ in train_loader:
                 losses = self.train_step(hist_state, hist_control, base_norm, cfg_tensor, gt_norm, diff_norm)
                 train_losses.append(losses)
+            train_step_time = time.time() - train_step_start
+            self.train_step_times.append(train_step_time)
 
             avg_train_loss = np.mean([l['total_loss'] for l in train_losses])
             avg_cascade = np.mean([l['cascade_loss'] for l in train_losses])
@@ -396,8 +414,13 @@ class Trainer:
             self.train_losses.append(avg_train_loss)
 
             is_best = False
+            val_time = 0.0
             if val_loader is not None:
+                val_start_time = time.time()
                 val_results = self.validate(val_loader)
+                val_time = time.time() - val_start_time
+                self.val_times.append(val_time)
+                
                 val_loss = val_results['val_loss']
                 val_mse = val_results['val_mse']
                 val_r2 = val_results['val_r2']
@@ -415,16 +438,31 @@ class Trainer:
                     if self.visualizer is not None:
                         self.plot_validation_comparison(val_results['val_batch_data'], epoch)
 
+            # 记录epoch结束时间
+            epoch_time = time.time() - epoch_start_time
+            self.epoch_times.append(epoch_time)
+            
+            # 计算平均每batch时间
+            avg_train_time_per_batch = train_step_time / len(train_loader)
+            avg_val_time_per_batch = val_time / len(val_loader) if val_loader is not None else 0.0
+
+            if val_loader is not None:
                 log_msg = (f"[Epoch {epoch}] Train Loss: {avg_train_loss:.6f} | Val Loss: {val_loss:.6f} | "
                           f"MSE: {val_mse:.8f} | R2: {val_r2:.6f} | "
                           f"Base MSE: {val_base_mse:.8f} | Net MSE: {val_pred_mse:.8f} | "
-                          f"Best: {best_val_loss:.6f} (Epoch {best_epoch})")
+                          f"Best: {best_val_loss:.6f} (Epoch {best_epoch}) | "
+                          f"Time: {epoch_time:.2f}s (Train: {train_step_time:.2f}s, Val: {val_time:.2f}s)")
                 self.logger.info(log_msg)
             else:
                 log_msg = (f"[Epoch {epoch}] Train Loss: {avg_train_loss:.6f} | "
                           f"MSE: {avg_mse:.8f} | R2: {avg_r2:.6f} | "
-                          f"Base MSE: {avg_base_mse:.8f} | Net MSE: {avg_pred_mse:.8f}")
+                          f"Base MSE: {avg_base_mse:.8f} | Net MSE: {avg_pred_mse:.8f} | "
+                          f"Time: {epoch_time:.2f}s")
                 self.logger.info(log_msg)
+
+        # 记录总训练结束时间
+        total_train_time = time.time() - total_start_time
+        self.total_train_time = total_train_time
 
         if val_loader is not None and self.visualizer is not None:
             self.plot_final_comparison(val_loader, best_epoch)
@@ -433,12 +471,20 @@ class Trainer:
             self.visualizer.plot_loss_curve(self.train_losses, self.val_losses, 'loss_curve.png')
             self.logger.info(f"Loss curve saved to {os.path.join(self.visualizer.save_dir, 'loss_curve.png')}")
 
+        # 生成时间统计报告
+        self.save_time_statistics(epochs, train_loader, val_loader)
+        
         self.logger.info("Training completed!")
+        self.logger.info(f"Total training time: {total_train_time:.2f}s ({total_train_time/60:.2f} minutes)")
+        
         return {
             'train_losses': self.train_losses,
             'val_losses': self.val_losses,
             'best_val_loss': best_val_loss,
-            'best_epoch': best_epoch
+            'best_epoch': best_epoch,
+            'total_train_time': total_train_time,
+            'avg_epoch_time': np.mean(self.epoch_times),
+            'model_name': self.model_name
         }
 
     def plot_final_comparison(self, val_loader, best_epoch):
@@ -557,6 +603,148 @@ class Trainer:
             self.logger.info(f"Error comparison results saved to: {csv_path}")
         except ImportError:
             self.logger.warning("pandas not available, skipping CSV export")
+
+    def save_time_statistics(self, epochs, train_loader, val_loader=None):
+        """保存时间统计报告"""
+        self.logger.info("\n" + "="*80)
+        self.logger.info("TRAINING TIME STATISTICS")
+        self.logger.info("="*80)
+        
+        # 计算统计信息
+        avg_epoch_time = np.mean(self.epoch_times)
+        std_epoch_time = np.std(self.epoch_times)
+        min_epoch_time = np.min(self.epoch_times)
+        max_epoch_time = np.max(self.epoch_times)
+        
+        avg_train_step_time = np.mean(self.train_step_times)
+        avg_val_time = np.mean(self.val_times) if self.val_times else 0.0
+        
+        num_train_batches = len(train_loader)
+        num_val_batches = len(val_loader) if val_loader else 0
+        
+        avg_train_time_per_batch = avg_train_step_time / num_train_batches
+        avg_val_time_per_batch = avg_val_time / num_val_batches if num_val_batches > 0 else 0.0
+        
+        # 输出到日志
+        self.logger.info(f"Model: {self.model_name}")
+        self.logger.info(f"Total Epochs: {epochs}")
+        self.logger.info(f"Total Training Time: {self.total_train_time:.2f}s ({self.total_train_time/60:.2f} minutes)")
+        self.logger.info(f"\nEpoch Statistics:")
+        self.logger.info(f"  Average Epoch Time: {avg_epoch_time:.2f}s")
+        self.logger.info(f"  Std Epoch Time: {std_epoch_time:.2f}s")
+        self.logger.info(f"  Min Epoch Time: {min_epoch_time:.2f}s (Epoch {np.argmin(self.epoch_times)})")
+        self.logger.info(f"  Max Epoch Time: {max_epoch_time:.2f}s (Epoch {np.argmax(self.epoch_times)})")
+        self.logger.info(f"\nTraining Step Statistics:")
+        self.logger.info(f"  Average Train Step Time: {avg_train_step_time:.2f}s")
+        self.logger.info(f"  Average Time per Batch: {avg_train_time_per_batch:.4f}s")
+        self.logger.info(f"  Number of Train Batches: {num_train_batches}")
+        if val_loader:
+            self.logger.info(f"\nValidation Statistics:")
+            self.logger.info(f"  Average Validation Time: {avg_val_time:.2f}s")
+            self.logger.info(f"  Average Time per Batch: {avg_val_time_per_batch:.4f}s")
+            self.logger.info(f"  Number of Val Batches: {num_val_batches}")
+        
+        self.logger.info("="*80 + "\n")
+        
+        # 保存到文件
+        time_stats = {
+            'model_name': self.model_name,
+            'total_epochs': epochs,
+            'total_train_time_s': self.total_train_time,
+            'total_train_time_min': self.total_train_time / 60,
+            'avg_epoch_time_s': avg_epoch_time,
+            'std_epoch_time_s': std_epoch_time,
+            'min_epoch_time_s': min_epoch_time,
+            'max_epoch_time_s': max_epoch_time,
+            'avg_train_step_time_s': avg_train_step_time,
+            'avg_val_time_s': avg_val_time,
+            'num_train_batches': num_train_batches,
+            'num_val_batches': num_val_batches,
+            'avg_train_time_per_batch_s': avg_train_time_per_batch,
+            'avg_val_time_per_batch_s': avg_val_time_per_batch,
+            'epoch_times': self.epoch_times,
+            'train_step_times': self.train_step_times,
+            'val_times': self.val_times
+        }
+        
+        # 保存为JSON格式
+        import json
+        json_path = os.path.join(self.log_dir, 'time_statistics.json')
+        with open(json_path, 'w') as f:
+            json.dump(time_stats, f, indent=2)
+        self.logger.info(f"Time statistics saved to: {json_path}")
+        
+        # 保存为CSV格式（epoch级别）
+        try:
+            import pandas as pd
+            epoch_stats_df = {
+                'epoch': np.arange(epochs),
+                'epoch_time_s': self.epoch_times,
+                'train_step_time_s': self.train_step_times,
+                'val_time_s': self.val_times if self.val_times else [0] * epochs
+            }
+            df = pd.DataFrame(epoch_stats_df)
+            csv_path = os.path.join(self.log_dir, 'epoch_time_statistics.csv')
+            df.to_csv(csv_path, index=False)
+            self.logger.info(f"Epoch time statistics saved to: {csv_path}")
+        except ImportError:
+            self.logger.warning("pandas not available, skipping CSV export")
+        
+        # 生成时间曲线图
+        self.plot_time_statistics()
+    
+    def plot_time_statistics(self):
+        """绘制时间统计曲线图"""
+        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+        
+        epochs = np.arange(len(self.epoch_times))
+        
+        # 子图1：每个epoch的总时间
+        ax1 = axes[0, 0]
+        ax1.plot(epochs, self.epoch_times, 'b-', linewidth=2, marker='o', markersize=3)
+        ax1.axhline(y=np.mean(self.epoch_times), color='r', linestyle='--', label=f'Mean: {np.mean(self.epoch_times):.2f}s')
+        ax1.set_xlabel('Epoch')
+        ax1.set_ylabel('Time (seconds)')
+        ax1.set_title(f'Epoch Time - {self.model_name}')
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+        
+        # 子图2：训练步骤时间
+        ax2 = axes[0, 1]
+        ax2.plot(epochs, self.train_step_times, 'g-', linewidth=2, marker='s', markersize=3)
+        ax2.axhline(y=np.mean(self.train_step_times), color='r', linestyle='--', label=f'Mean: {np.mean(self.train_step_times):.2f}s')
+        ax2.set_xlabel('Epoch')
+        ax2.set_ylabel('Time (seconds)')
+        ax2.set_title('Training Step Time per Epoch')
+        ax2.legend()
+        ax2.grid(True, alpha=0.3)
+        
+        # 子图3：验证时间
+        ax3 = axes[1, 0]
+        if self.val_times:
+            ax3.plot(epochs, self.val_times, 'm-', linewidth=2, marker='^', markersize=3)
+            ax3.axhline(y=np.mean(self.val_times), color='r', linestyle='--', label=f'Mean: {np.mean(self.val_times):.2f}s')
+        ax3.set_xlabel('Epoch')
+        ax3.set_ylabel('Time (seconds)')
+        ax3.set_title('Validation Time per Epoch')
+        ax3.legend()
+        ax3.grid(True, alpha=0.3)
+        
+        # 子图4：时间分布对比
+        ax4 = axes[1, 1]
+        ax4.bar(['Train', 'Validation'], [np.sum(self.train_step_times), np.sum(self.val_times)], 
+               color=['green', 'magenta'], alpha=0.7)
+        ax4.set_ylabel('Total Time (seconds)')
+        ax4.set_title(f'Total Time Distribution - {self.total_train_time:.2f}s')
+        ax4.grid(True, alpha=0.3, axis='y')
+        
+        plt.tight_layout()
+        
+        save_path = os.path.join(self.log_dir, 'time_statistics.png')
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        plt.close()
+        
+        self.logger.info(f"Time statistics plot saved to: {save_path}")
 
 
 if __name__ == "__main__":

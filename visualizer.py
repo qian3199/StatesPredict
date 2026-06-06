@@ -69,7 +69,7 @@ class VisualUtils:
             rmse_base = np.sqrt(np.mean((base_states[:, i] - gt_states[:, i])**2))
             rmse_pred = np.sqrt(np.mean((pred_states[:, i] - gt_states[:, i])**2))
             
-            ax.set_title(f'{self.state_names[i]} (Base RMSE: {rmse_base:.4f}, Pred RMSE: {rmse_pred:.4f})', 
+            ax.set_title(f'{self.state_names[i]} (Base RMSE: {rmse_base:.8f}, Pred RMSE: {rmse_pred:.8f})', 
                         fontsize=12)
             ax.set_xlabel('Time Step', fontsize=10)
             ax.set_ylabel(self.state_names[i], fontsize=10)
@@ -109,7 +109,7 @@ class VisualUtils:
             rmse_base = np.sqrt(np.mean((all_base[:, i] - all_gt[:, i])**2))
             rmse_pred = np.sqrt(np.mean((all_pred[:, i] - all_gt[:, i])**2))
             
-            ax.set_title(f'{state_labels[i]}\nBase RMSE: {rmse_base:.4f}, Hybrid RMSE: {rmse_pred:.4f}', 
+            ax.set_title(f'{state_labels[i]}\nBase RMSE: {rmse_base:.8f}, Hybrid RMSE: {rmse_pred:.8f}', 
                         fontsize=11)
             ax.set_xlabel('Sample Index', fontsize=10)
             ax.set_ylabel(state_labels[i], fontsize=10)
@@ -165,7 +165,7 @@ class VisualUtils:
             mean_base_error = np.mean(np.abs(base_error[:, i]))
             mean_pred_error = np.mean(np.abs(pred_error[:, i]))
 
-            ax.set_title(f'{self.state_names[i]} Error (Base: {mean_base_error:.4f}, Pred: {mean_pred_error:.4f})',
+            ax.set_title(f'{self.state_names[i]} Error (Base: {mean_base_error:.8f}, Pred: {mean_pred_error:.8f})',
                         fontsize=12)
             ax.set_xlabel('Time Step', fontsize=10)
             ax.set_ylabel('Absolute Error', fontsize=10)
