@@ -141,7 +141,7 @@ def run_training():
     logger.info(f"Training completed! Best val loss: {results['best_val_loss']:.6f} at epoch {results['best_epoch']}")
     
     torch.save(model.state_dict(), f'{model_name.lower()}_model.pth')
-    logger.info(f"Model saved to {model_name.lower()}_model.pth}")
+    logger.info(f"Model saved to {model_name.lower()}_model.pth")
     
     # 保存模型路径配置（方便推理时自动读取）
     save_model_path_config(output_dir, args.model.upper())
