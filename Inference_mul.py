@@ -38,38 +38,87 @@ class Gen4CarConfig(CarConfig):
     rear_corner_stiffness: float = 62190
 
 
-class SimpleBicycleModel:
-    def __init__(self):
-        self.l_f = Gen4CarConfig.base_to_fa
-        self.l_r = Gen4CarConfig.base_to_ra
-        self.wheel_base = Gen4CarConfig.wheel_base
-        self.steering_gear_ratio = Gen4CarConfig.steering_gear_ratio
-        self.mass = Gen4CarConfig.mass
-        self.c_af = Gen4CarConfig.front_corner_stiffness
-        self.c_ar = Gen4CarConfig.rear_corner_stiffness
-        self.i_z = Gen4CarConfig.inertial_z
-    
-    def simulate(self, current_state, control, dt=0.01):
-        vlon, vlat, yaw, vyaw = current_state
-        acc, angle = control
-        
-        delta = angle / self.steering_gear_ratio
-        
-        new_vlon = vlon + acc * dt
-        
-        v = np.sqrt(vlon**2 + vlat**2) if vlon != 0 else 0.1
-        if v > 0:
-            yaw_rate = (vlon * np.tan(delta)) / self.wheel_base
-            new_vyaw = yaw_rate
+class State(np.ndarray):
+    def __new__(cls, input_array):
+        obj = np.asarray(input_array).view(cls)
+        return obj
+
+class ControlInput(np.ndarray):
+    def __new__(cls, input_array):
+        obj = np.asarray(input_array).view(cls)
+        return obj
+
+
+class LateralDynamicBicycle:
+    """
+    运动学自行车模型 (Kinematic Bicycle Model) - 与训练时使用的模型一致
+    状态: [x, y, vx, vy, psi, r]
+    控制: [a, delta]   (a: 纵向加速度, delta: 前轮转角)
+    """
+    States = ['x', 'y', 'vx', 'vy', 'psi', 'r']
+    ControlInputs = ['a', 'delta']
+
+    def __init__(self, parameters):
+        self.wheelbase = parameters['wheelbase']
+        self.l_f = parameters.get('l_f', self.wheelbase/2)
+        self.l_r = parameters.get('l_r', self.wheelbase/2)
+        self.steering_gear_ratio = parameters.get('steering_gear_ratio', 1.0)
+
+    def State(self, data):
+        return State(data)
+
+    def ControlInput(self, data):
+        return ControlInput(data)
+
+    def _dynamics(self, state, control):
+        """运动学模型导数，用于 RK4 积分"""
+        x, y, vx, vy, psi, r = state
+        a, delta = control
+        if abs(vx) < 0.01:
+            vx = 0.01
+        r_desired = vx * np.tan(delta) / self.wheelbase
+        tau = 0.05
+        r_dot = (r_desired - r) / tau
+        vx_dot = a
+        vy_dot = 0.0
+        x_dot = vx * np.cos(psi) - vy * np.sin(psi)
+        y_dot = vx * np.sin(psi) + vy * np.cos(psi)
+        psi_dot = r
+        return np.array([x_dot, y_dot, vx_dot, vy_dot, psi_dot, r_dot])
+
+    def simulate(self, initial_state, control_input, n=1, dt=0.01):
+        """
+        使用 4 阶 Runge-Kutta 积分 n 步
+        initial_state: (6,) 或 (6,1)
+        control_input: (2,) 或 (2,1)
+        return: traj (6, n+1), success
+        """
+        if initial_state.ndim == 1:
+            init = initial_state.reshape(-1, 1)
         else:
-            new_vyaw = vyaw
-        
-        new_vlat = vlat + (vlon * new_vyaw) * dt
-        
-        new_yaw = yaw + vyaw * dt
-        new_yaw = (new_yaw + np.pi) % (2 * np.pi) - np.pi
-        
-        return np.array([new_vlon, new_vlat, new_yaw, new_vyaw])
+            init = initial_state
+        if control_input.ndim == 1:
+            ctrl = control_input.reshape(-1, 1)
+        else:
+            ctrl = control_input
+
+        traj = np.zeros((6, n+1))
+        traj[:, 0] = init.flatten()
+
+        for step in range(n):
+            cur = traj[:, step]
+            a = ctrl[0, 0] if ctrl.shape[1] == 1 else ctrl[0, step]
+            delta = ctrl[1, 0] if ctrl.shape[1] == 1 else ctrl[1, step]
+            control = np.array([a, delta])
+
+            k1 = self._dynamics(cur, control)
+            k2 = self._dynamics(cur + 0.5*dt*k1, control)
+            k3 = self._dynamics(cur + 0.5*dt*k2, control)
+            k4 = self._dynamics(cur + dt*k3, control)
+            next_state = cur + dt * (k1 + 2*k2 + 2*k3 + k4) / 6
+            traj[:, step+1] = next_state
+
+        return traj, True
 
 
 class InferModel:
@@ -90,7 +139,13 @@ class InferModel:
         self.feature_name = feature_name
         self.control_name = control_name
         self.model_flag = model_flag
-        self.phy_model = SimpleBicycleModel()
+        phy_params = {
+            'wheelbase': Gen4CarConfig.wheel_base,
+            'l_f': Gen4CarConfig.base_to_fa,
+            'l_r': Gen4CarConfig.base_to_ra,
+            'steering_gear_ratio': Gen4CarConfig.steering_gear_ratio
+        }
+        self.phy_model = LateralDynamicBicycle(phy_params)
         net_model = self.load_trained_model(model_path, model_config, device)
         self.model = net_model.to(device)
         self.model.eval()
@@ -249,23 +304,42 @@ class InferModel:
         current_states_T = current_states[-1, :].T.reshape(-1, 1)
         xy_data_T = xy_data_t.T
 
-        current_state_4d = current_states_T[:4, :].flatten()
-        control_2d = control_T[:2, :].flatten()
-        
-        physics_next = self.phy_model.simulate(current_state_4d, control_2d, dt=self.dt)
-        
-        vlon, vlat, yaw, vyaw = physics_next
+        # 提取当前状态 (vlon, vlat, yaw, vyaw)
+        vlon, vlat, yaw, vyaw = current_states_T[:4, :].flatten()
+        # 转换为 LateralDynamicBicycle 需要的 6D 状态: [x, y, vx, vy, psi, r]
+        x, y = xy_data_T[0, 0], xy_data_T[1, 0]
         vx = vlon * np.cos(yaw) - vlat * np.sin(yaw)
         vy = vlon * np.sin(yaw) + vlat * np.cos(yaw)
+        psi = yaw
+        r = vyaw
+        initial_state_6d = np.array([x, y, vx, vy, psi, r])
         
-        new_x = xy_data_T[0, :] + vx * self.dt
-        new_y = xy_data_T[1, :] + vy * self.dt
+        # 提取控制量 (acc, angle) -> 转换为 (a, delta)
+        acc, angle = control_T[:2, :].flatten()
+        delta = angle / self.phy_model.steering_gear_ratio
+        control_input = np.array([acc, delta])
         
-        acc_lon = (physics_next[0] - current_state_4d[0]) / self.dt
-        acc_lat = (physics_next[1] - current_state_4d[1]) / self.dt
-        acc_yaw = (physics_next[3] - current_state_4d[3]) / self.dt
-
-        xy_data_t = np.array([[new_x[0], new_y[0]]])
+        # 调用物理模型模拟一步 (n=1)
+        traj_6d, success = self.phy_model.simulate(initial_state_6d, control_input, n=1, dt=self.dt)
+        
+        # 提取下一时刻的 6D 状态并转换回 4D (vlon, vlat, yaw, vyaw)
+        next_state_6d = traj_6d[:, 1]
+        next_x, next_y, next_vx, next_vy, next_psi, next_r = next_state_6d
+        
+        # 转换回车体坐标系
+        next_vlon = next_vx * np.cos(next_psi) + next_vy * np.sin(next_psi)
+        next_vlat = -next_vx * np.sin(next_psi) + next_vy * np.cos(next_psi)
+        next_yaw = next_psi
+        next_vyaw = next_r
+        
+        # 计算加速度
+        acc_lon = (next_vlon - vlon) / self.dt
+        acc_lat = (next_vlat - vlat) / self.dt
+        acc_yaw = (next_vyaw - vyaw) / self.dt
+        
+        # 组合输出
+        physics_next = np.array([next_vlon, next_vlat, next_yaw, next_vyaw])
+        xy_data_t = np.array([[next_x, next_y]])
         phy_pred = np.concatenate([
             physics_next,
             np.array([acc_lon, acc_lat, acc_yaw])

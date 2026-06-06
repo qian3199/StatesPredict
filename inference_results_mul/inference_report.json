@@ -1,37 +1,37 @@
 {
-  "timestamp": "2026-06-06 22:43:12",
+  "timestamp": "2026-06-06 23:24:36",
   "n_trips": 1,
-  "total_time": 8.607204675674438,
-  "avg_inference_time": 8.607204675674438,
+  "total_time": 19.21808886528015,
+  "avg_inference_time": 19.21808886528015,
   "params": {
     "start_idx": 20,
     "hist_len": 15
   },
   "summary": {
-    "physics_state_rmse": 2.4498468839278296,
-    "hybrid_state_rmse": 2.0411407711257974,
-    "state_improvement": 16.682924777190784,
-    "physics_xy_rmse": 16.132476469896538,
-    "hybrid_xy_rmse": 13.897324860501927,
-    "xy_improvement": 13.854981369819075,
-    "avg_samples_per_second": 63.3190473023456
+    "physics_state_rmse": 2.426270349606164,
+    "hybrid_state_rmse": 2.850678894111276,
+    "state_improvement": -17.492219882833847,
+    "physics_xy_rmse": 4.463692708568459,
+    "hybrid_xy_rmse": 3.2718187352355623,
+    "xy_improvement": 26.70152385366913,
+    "avg_samples_per_second": 28.358699130828235
   },
   "trip_details": [
     {
       "trip_id": "trip_0500",
       "n_samples": 545,
-      "inference_time": 8.607204675674438,
+      "inference_time": 19.21808886528015,
       "pred_samples": 510,
-      "phy_state_rmse": 2.4498468839278296,
-      "phy_state_mse": 42.01224828283626,
-      "phy_xy_rmse": 16.132476469896538,
-      "phy_xy_mse": 260.2567970517655,
-      "hyb_state_rmse": 2.0411407711257974,
-      "hyb_state_mse": 29.163789532864104,
-      "state_improvement": 16.682924777190784,
-      "hyb_xy_rmse": 13.897324860501927,
-      "hyb_xy_mse": 193.13563827832488,
-      "xy_improvement": 13.854981369819075
+      "phy_state_rmse": 2.426270349606164,
+      "phy_state_mse": 41.20751466564612,
+      "phy_xy_rmse": 4.463692708568459,
+      "phy_xy_mse": 19.924552596527224,
+      "hyb_state_rmse": 2.850678894111276,
+      "hyb_state_mse": 56.884591101320396,
+      "state_improvement": -17.492219882833847,
+      "hyb_xy_rmse": 3.2718187352355623,
+      "hyb_xy_mse": 10.704797836238434,
+      "xy_improvement": 26.70152385366913
     }
   ]
 }
