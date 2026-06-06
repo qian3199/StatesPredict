@@ -909,8 +909,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='DyTR 推理脚本')
     parser.add_argument('--output_dir', type=str, default=None, 
                         help='输出目录 (默认: ./inference_results_mul，可传入训练输出目录)')
-    parser.add_argument('--model_path', type=str, default='left_turn_model.pth', 
-                        help='模型文件路径 (默认: left_turn_model.pth)')
+    parser.add_argument('--model_path', type=str, default=None, 
+                        help='模型文件路径 (默认: 自动从 latest_model_config.json 读取)')
+    parser.add_argument('--model_type', type=str, default=None, 
+                        help='模型类型: lstm 或 mlp (默认: 自动从配置文件读取最新模型)')
     parser.add_argument('--data_dir', type=str, default='./data/left_turn_dataset', 
                         help='数据目录 (默认: ./data/left_turn_dataset)')
     parser.add_argument('--max_trips', type=int, default=2, 
@@ -920,6 +922,60 @@ if __name__ == "__main__":
     parser.add_argument('--hist_len', type=int, default=15, 
                         help='历史序列长度 (默认: 15)')
     args = parser.parse_args()
+    
+    # 自动读取模型路径配置
+    config_path = 'latest_model_config.json'
+    if os.path.exists(config_path):
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        print(f"已读取模型配置: {config_path}")
+        print(f"可用模型:")
+        for key, value in config.items():
+            if key not in ['latest', 'timestamp'] and isinstance(value, str) and value.endswith('.pth'):
+                print(f"  - {key}: {value}")
+    else:
+        config = {}
+        print(f"警告: 配置文件 {config_path} 不存在，将使用默认模型路径")
+    
+    # 确定使用的模型
+    if args.model_type:
+        model_key = f'{args.model_type.upper()}_best_model'
+        if model_key in config:
+            args.model_path = config[model_key]
+            print(f"使用指定的模型类型: {args.model_type.upper()}, 路径: {args.model_path}")
+        else:
+            print(f"警告: 配置中未找到 {model_key}，将使用默认路径")
+            args.model_path = f'{args.model_type.lower()}_model.pth'
+    elif args.model_path is None:
+        # 自动使用最新训练的模型
+        if 'latest' in config and config['latest']:
+            model_key = f"{config['latest']}_best_model"
+            if model_key in config:
+                args.model_path = config[model_key]
+                print(f"自动使用最新训练的模型: {config['latest'].upper()}, 路径: {args.model_path}")
+            else:
+                print(f"警告: 配置中未找到 {model_key}，将使用默认路径")
+                args.model_path = 'left_turn_model.pth'
+        else:
+            args.model_path = 'left_turn_model.pth'
+    
+    # 确定输出目录
+    if args.output_dir is None:
+        if 'latest' in config and config['latest']:
+            output_key = f"{config['latest']}_output_dir"
+            if output_key in config:
+                args.output_dir = os.path.join(config[output_key], 'inference_mul')
+                print(f"自动设置输出目录: {args.output_dir}")
+            else:
+                args.output_dir = './inference_results_mul'
+        else:
+            args.output_dir = './inference_results_mul'
+    
+    print(f"\n推理配置:")
+    print(f"  模型路径: {args.model_path}")
+    print(f"  数据目录: {args.data_dir}")
+    print(f"  输出目录: {args.output_dir}")
+    print(f"  处理Trip数: {args.max_trips}")
     
     model_flag = 3
     if model_flag == 3:

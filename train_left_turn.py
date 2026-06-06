@@ -141,7 +141,10 @@ def run_training():
     logger.info(f"Training completed! Best val loss: {results['best_val_loss']:.6f} at epoch {results['best_epoch']}")
     
     torch.save(model.state_dict(), f'{model_name.lower()}_model.pth')
-    logger.info(f"Model saved to {model_name.lower()}_model.pth")
+    logger.info(f"Model saved to {model_name.lower()}_model.pth}")
+    
+    # 保存模型路径配置（方便推理时自动读取）
+    save_model_path_config(output_dir, args.model.upper())
     
     # 运行推理 - 使用 Inference_mul.py 的方式
     run_inference_mul(output_dir, args)
@@ -179,6 +182,34 @@ def run_inference(output_dir, model, dataset, val_files, inference_files=0):
     )
     
     logger.info(f"Inference completed!")
+
+def save_model_path_config(output_dir, model_type):
+    """保存最新模型路径到配置文件"""
+    import json
+    config_path = 'latest_model_config.json'
+    
+    # 读取现有配置
+    if os.path.exists(config_path):
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+    else:
+        config = {}
+    
+    # 更新对应模型类型的最新路径
+    model_key = f'{model_type}_best_model'
+    model_path = os.path.join(output_dir, 'best_model.pth')
+    
+    config[model_key] = model_path
+    config[f'{model_type}_last_model'] = os.path.join(output_dir, 'last_model.pth')
+    config[f'{model_type}_output_dir'] = output_dir
+    config['latest'] = model_type
+    config['timestamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
+    with open(config_path, 'w') as f:
+        json.dump(config, f, indent=2)
+    
+    logger.info(f"Model path saved to {config_path}: {model_key} = {model_path}")
+
 
 def run_inference_mul(output_dir, args):
     """使用 Inference_mul.py 的方式运行推理"""

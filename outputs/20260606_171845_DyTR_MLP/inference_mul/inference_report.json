@@ -1,0 +1,37 @@
+{
+  "timestamp": "2026-06-06 22:41:02",
+  "n_trips": 1,
+  "total_time": 8.68547511100769,
+  "avg_inference_time": 8.684961318969727,
+  "params": {
+    "start_idx": 20,
+    "hist_len": 15
+  },
+  "summary": {
+    "physics_state_rmse": 2.4498468839278296,
+    "hybrid_state_rmse": 1394.7439245229382,
+    "state_improvement": -56831.8814850482,
+    "physics_xy_rmse": 16.132476469896538,
+    "hybrid_xy_rmse": 7596.4121792842,
+    "xy_improvement": -46987.700350651234,
+    "avg_samples_per_second": 62.75215052594522
+  },
+  "trip_details": [
+    {
+      "trip_id": "trip_0500",
+      "n_samples": 545,
+      "inference_time": 8.684961318969727,
+      "pred_samples": 510,
+      "phy_state_rmse": 2.4498468839278296,
+      "phy_state_mse": 42.01224828283626,
+      "phy_xy_rmse": 16.132476469896538,
+      "phy_xy_mse": 260.2567970517655,
+      "hyb_state_rmse": 1394.7439245229382,
+      "hyb_state_mse": 13617174.30495553,
+      "state_improvement": -56831.8814850482,
+      "hyb_xy_rmse": 7596.4121792842,
+      "hyb_xy_mse": 57705477.997577325,
+      "xy_improvement": -46987.700350651234
+    }
+  ]
+}
