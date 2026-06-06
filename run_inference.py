@@ -197,6 +197,90 @@ def run_inference(model_path=None, data_dir='./data/left_turn_dataset', output_d
         f.write("="*80 + "\n")
 
     print(f"Results saved to: {results_file}")
+    
+    # 生成更多可视化结果
+    print("\nGenerating additional visualizations...")
+    
+    # 状态对比图
+    visualizer.plot_state_comparison(
+        pred_states=all_predictions[:, 0, :],
+        base_states=all_base_predictions[:, 0, :],
+        gt_states=all_ground_truth[:, 0, :],
+        save_path='state_comparison.png'
+    )
+    print("State comparison plot saved")
+    
+    # 误差随时间变化图
+    base_errors = all_base_predictions[:, 0, :] - all_ground_truth[:, 0, :]
+    pred_errors = all_predictions[:, 0, :] - all_ground_truth[:, 0, :]
+    visualizer.plot_error_over_time(
+        base_error=base_errors,
+        pred_error=pred_errors,
+        save_path='error_over_time.png'
+    )
+    print("Error over time plot saved")
+    
+    # 波动分析图（400帧后）
+    visualizer.plot_fluctuation_analysis(
+        state_data=all_ground_truth[:, 0, :],
+        physics_pred=all_base_predictions[:, 0, :],
+        hybrid_pred=all_predictions[:, 0, :],
+        threshold_frame=400,
+        save_path='fluctuation_analysis.png'
+    )
+    print("Fluctuation analysis plot saved")
+    
+    # 详细波动分析（400-600帧）
+    visualizer.plot_fluctuation_detailed(
+        state_data=all_ground_truth[:, 0, :],
+        physics_pred=all_base_predictions[:, 0, :],
+        hybrid_pred=all_predictions[:, 0, :],
+        start_frame=400,
+        window_size=200,
+        save_path='fluctuation_detail.png'
+    )
+    print("Fluctuation detail plot saved")
+    
+    # 推理结果综合图
+    visualizer.plot_inference_results(
+        state_data=all_ground_truth[:, 0, :],
+        physics_pred=all_base_predictions[:, 0, :],
+        hybrid_pred=all_predictions[:, 0, :],
+        save_path='inference_result.png',
+        title='Inference Results: Physics vs Hybrid'
+    )
+    print("Inference result plot saved")
+    
+    # 计算并生成XY轨迹对比图
+    print("\nCalculating XY trajectories...")
+    def compute_trajectory(states, dt=0.01):
+        """从状态数据计算XY轨迹"""
+        n = len(states)
+        xy = np.zeros((n, 2))
+        for i in range(1, n):
+            vlon = states[i-1, 0]
+            vlat = states[i-1, 1]
+            yaw = states[i-1, 2]
+            vx = vlon * np.cos(yaw) - vlat * np.sin(yaw)
+            vy = vlon * np.sin(yaw) + vlat * np.cos(yaw)
+            xy[i] = xy[i-1] + np.array([vx, vy]) * dt
+        return xy
+    
+    gt_xy = compute_trajectory(all_ground_truth[:, 0, :])
+    base_xy = compute_trajectory(all_base_predictions[:, 0, :])
+    pred_xy = compute_trajectory(all_predictions[:, 0, :])
+    
+    # XY轨迹对比图
+    visualizer.plot_xy_comparison(
+        gt_xy=gt_xy,
+        physics_xy=base_xy,
+        hybrid_xy=pred_xy,
+        save_path='xy_trajectory.png',
+        title='XY Trajectory Comparison'
+    )
+    print("XY trajectory plot saved")
+    
+    print(f"\nAll visualizations saved to: {output_dir}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='DyTR-LSTM 推理脚本')

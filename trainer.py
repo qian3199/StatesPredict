@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 class Trainer:
     def __init__(self, model, state_scaler, diff_scaler, lr=1e-4, weight_decay=1e-5, visualizer=None, log_dir='./logs', device=None, 
-                 early_stopping=True, patience=20, min_delta=1e-8):
+                 early_stopping=True, patience=20, min_delta=1e-8, warm_up_epochs=5):
         self.model = model
         self.state_scaler = state_scaler
         self.diff_scaler = diff_scaler
@@ -59,6 +59,10 @@ class Trainer:
         self.patience = patience
         self.min_delta = min_delta
         self.patience_counter = 0
+        
+        # 学习率Warm-up相关参数
+        self.warm_up_epochs = warm_up_epochs
+        self.initial_lr = lr
 
     def denormalize_state(self, state_norm):
         # 使用tensor操作来保留梯度，不转numpy
@@ -131,7 +135,7 @@ class Trainer:
         corr_error = torch.abs(final_pred - gt_real).mean()
         diff_constraint = torch.max(torch.tensor(0.0, device=final_pred.device), corr_error - base_error)
 
-        cascade_loss = pred_loss * 5.0 + traj_loss * 20.0 + delta_reg_loss * 5.0 + diff_constraint * 50.0
+        cascade_loss = pred_loss * 20.0 + traj_loss * 20.0 + delta_reg_loss * 5.0 + diff_constraint * 15.0
         
         mse_loss = torch.mean((final_pred - gt_real) ** 2)
         
@@ -348,43 +352,97 @@ class Trainer:
         self.visualizer.plot_multi_step_comparison(all_pred_np, all_base_np, all_gt_np, img_path)
 
         traj_path = f'val_trajectory_epoch{epoch:04d}.png'
-        fig, ax = plt.subplots(figsize=(12, 10))
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 8))
 
+        # === 子图1：完整轨迹片段（选择第一个样本的完整序列）===
+        # 从验证数据中获取一个完整的轨迹片段
+        sample_idx = 0  # 选择第一个样本
+        # 轨迹长度不能超过数据长度
+        max_len = min(100, len(all_gt_np))
+        traj_len = max_len if max_len > 0 else len(all_gt_np)
+        
+        # 获取状态数据
+        gt_states = all_gt_np[sample_idx:sample_idx+traj_len]
+        base_states = all_base_np[sample_idx:sample_idx+traj_len]
+        pred_states = all_pred_np[sample_idx:sample_idx+traj_len]
+        start_pos = all_pos_np[sample_idx]
+        
+        # 积分计算轨迹
         dt = 0.01
-        real_yaw = all_gt_np[:, 2]
+        real_x, real_y = [start_pos[0]], [start_pos[1]]
+        base_x, base_y = [start_pos[0]], [start_pos[1]]
+        pred_x, pred_y = [start_pos[0]], [start_pos[1]]
+        
+        for i in range(traj_len):
+            # Ground Truth
+            yaw = gt_states[i, 2]
+            dx = gt_states[i, 0] * np.cos(yaw) * dt - gt_states[i, 1] * np.sin(yaw) * dt
+            dy = gt_states[i, 0] * np.sin(yaw) * dt + gt_states[i, 1] * np.cos(yaw) * dt
+            real_x.append(real_x[-1] + dx)
+            real_y.append(real_y[-1] + dy)
+            
+            # Physics Baseline
+            base_yaw = base_states[i, 2]
+            dx_base = base_states[i, 0] * np.cos(base_yaw) * dt - base_states[i, 1] * np.sin(base_yaw) * dt
+            dy_base = base_states[i, 0] * np.sin(base_yaw) * dt + base_states[i, 1] * np.cos(base_yaw) * dt
+            base_x.append(base_x[-1] + dx_base)
+            base_y.append(base_y[-1] + dy_base)
+            
+            # Hybrid Corrected
+            pred_yaw = pred_states[i, 2]
+            dx_pred = pred_states[i, 0] * np.cos(pred_yaw) * dt - pred_states[i, 1] * np.sin(pred_yaw) * dt
+            dy_pred = pred_states[i, 0] * np.sin(pred_yaw) * dt + pred_states[i, 1] * np.cos(pred_yaw) * dt
+            pred_x.append(pred_x[-1] + dx_pred)
+            pred_y.append(pred_y[-1] + dy_pred)
+        
+        ax1.plot(real_x, real_y, label='Ground Truth', color='#27AE60', linewidth=2.5, marker='o', markersize=4, alpha=0.8)
+        ax1.plot(base_x, base_y, label='Physics Baseline', color='#3498DB', linewidth=2.5, marker='s', markersize=4, alpha=0.8)
+        ax1.plot(pred_x, pred_y, label='Hybrid Corrected', color='#E74C3C', linewidth=2.5, marker='^', markersize=4, alpha=0.8)
+        
+        # 标记起点和终点
+        ax1.scatter(real_x[0], real_y[0], color='black', s=100, marker='*', label='Start')
+        ax1.scatter(real_x[-1], real_y[-1], color='red', s=100, marker='*', label='End')
+        
+        ax1.set_xlabel('X (m)', fontsize=12)
+        ax1.set_ylabel('Y (m)', fontsize=12)
+        ax1.set_title(f'Trajectory Comparison (Sample {sample_idx}, {traj_len} steps) - Epoch {epoch}', fontsize=14)
+        ax1.legend(fontsize=11, loc='best')
+        ax1.grid(True, linestyle='--', alpha=0.7)
+        ax1.axis('equal')
 
-        dx_real = all_gt_np[:, 0] * np.cos(real_yaw) * dt - all_gt_np[:, 1] * np.sin(real_yaw) * dt
-        dy_real = all_gt_np[:, 0] * np.sin(real_yaw) * dt + all_gt_np[:, 1] * np.cos(real_yaw) * dt
+        # === 子图2：所有样本的预测位置分布 ===
+        real_x_all = all_pos_np[:, 0]
+        real_y_all = all_pos_np[:, 1]
+        pred_x_all = real_x_all.copy()
+        pred_y_all = real_y_all.copy()
+        base_x_all = real_x_all.copy()
+        base_y_all = real_y_all.copy()
+        
+        for i in range(len(real_x_all)):
+            yaw = all_gt_np[i, 2]
+            dx = all_gt_np[i, 0] * np.cos(yaw) * dt - all_gt_np[i, 1] * np.sin(yaw) * dt
+            dy = all_gt_np[i, 0] * np.sin(yaw) * dt + all_gt_np[i, 1] * np.cos(yaw) * dt
+            pred_x_all[i] += dx
+            pred_y_all[i] += dy
+            
+            base_yaw = all_base_np[i, 2]
+            dx_base = all_base_np[i, 0] * np.cos(base_yaw) * dt - all_base_np[i, 1] * np.sin(base_yaw) * dt
+            dy_base = all_base_np[i, 0] * np.sin(base_yaw) * dt + all_base_np[i, 1] * np.cos(base_yaw) * dt
+            base_x_all[i] += dx_base
+            base_y_all[i] += dy_base
+        
+        ax2.scatter(all_pos_np[:, 0], all_pos_np[:, 1], color='gray', alpha=0.3, s=20, label='Starting Points')
+        ax2.scatter(pred_x_all, pred_y_all, color='#E74C3C', alpha=0.6, s=30, label='Hybrid Corrected', marker='^')
+        ax2.scatter(base_x_all, base_y_all, color='#3498DB', alpha=0.6, s=30, label='Physics Baseline', marker='s')
+        
+        ax2.set_xlabel('X (m)', fontsize=12)
+        ax2.set_ylabel('Y (m)', fontsize=12)
+        ax2.set_title(f'Prediction Distribution ({num_samples} samples) - Epoch {epoch}', fontsize=14)
+        ax2.legend(fontsize=11, loc='best')
+        ax2.grid(True, linestyle='--', alpha=0.7)
+        ax2.axis('equal')
 
-        base_yaw = all_base_np[:, 2]
-        dx_base = all_base_np[:, 0] * np.cos(base_yaw) * dt - all_base_np[:, 1] * np.sin(base_yaw) * dt
-        dy_base = all_base_np[:, 0] * np.sin(base_yaw) * dt + all_base_np[:, 1] * np.cos(base_yaw) * dt
-
-        pred_yaw = all_pred_np[:, 2]
-        dx_pred = all_pred_np[:, 0] * np.cos(pred_yaw) * dt - all_pred_np[:, 1] * np.sin(pred_yaw) * dt
-        dy_pred = all_pred_np[:, 0] * np.sin(pred_yaw) * dt + all_pred_np[:, 1] * np.cos(pred_yaw) * dt
-
-        real_x = all_pos_np[:, 0]
-        real_y = all_pos_np[:, 1]
-        base_x = real_x - dx_real + dx_base
-        base_y = real_y - dy_real + dy_base
-        pred_x = real_x - dx_real + dx_pred
-        pred_y = real_y - dy_real + dy_pred
-
-        sorted_idx = np.argsort(np.arctan2(real_y - np.mean(real_y), real_x - np.mean(real_x)))
-        ax.plot(real_x[sorted_idx], real_y[sorted_idx], label='Ground Truth (Real)',
-                color='#27AE60', linewidth=2, alpha=0.7, marker='o', markersize=3, zorder=3)
-        ax.plot(base_x[sorted_idx], base_y[sorted_idx], label='Physics Baseline',
-                color='#3498DB', linewidth=2, alpha=0.7, marker='s', markersize=3, zorder=2)
-        ax.plot(pred_x[sorted_idx], pred_y[sorted_idx], label='Hybrid Corrected',
-                color='#E74C3C', linewidth=2, alpha=0.7, marker='^', markersize=3, zorder=1)
-
-        ax.set_xlabel('X (m)', fontsize=12)
-        ax.set_ylabel('Y (m)', fontsize=12)
-        ax.set_title(f'Validation Position Comparison ({num_samples} samples) - Epoch {epoch}', fontsize=14)
-        ax.legend(fontsize=11, loc='best')
-        ax.grid(True, linestyle='--', alpha=0.7)
-        ax.axis('equal')
+        plt.tight_layout()
         plt.savefig(os.path.join(self.visualizer.save_dir, traj_path), dpi=150, bbox_inches='tight')
         plt.close()
 
@@ -403,6 +461,13 @@ class Trainer:
             epoch_start_time = time.time()
             
             self.model.teacher_forcing_ratio = max(0.1, 0.5 - epoch * 0.004)
+            
+            # 学习率Warm-up
+            if epoch < self.warm_up_epochs:
+                lr_scale = (epoch + 1) / self.warm_up_epochs
+                for param_group in self.optimizer.param_groups:
+                    param_group['lr'] = self.initial_lr * lr_scale
+                self.logger.info(f"[Warm-up] Epoch {epoch}: lr = {self.optimizer.param_groups[0]['lr']:.6f}")
 
             train_losses = []
             train_step_start = time.time()
@@ -440,8 +505,9 @@ class Trainer:
                     best_epoch = epoch
                     is_best = True
                     self.patience_counter = 0  # 重置耐心计数器
-                    torch.save(self.model.state_dict(), 'best_model.pth')
-                    self.logger.info(f"  New best model saved! Base MSE: {val_base_mse:.8f} | Net MSE: {val_pred_mse:.8f} | Improvement: {(val_base_mse - val_pred_mse):.8f}")
+                    model_path = os.path.join(self.log_dir, 'best_model.pth')
+                    torch.save(self.model.state_dict(), model_path)
+                    self.logger.info(f"  New best model saved to {model_path}! Base MSE: {val_base_mse:.8f} | Net MSE: {val_pred_mse:.8f} | Improvement: {(val_base_mse - val_pred_mse):.8f}")
 
                     if self.visualizer is not None:
                         self.plot_validation_comparison(val_results['val_batch_data'], epoch)

@@ -113,6 +113,13 @@ class TimeSeriesDataset(Dataset):
         bases = base_states
         ctls = controls[:, self.control_indices]
 
+        # 确保输入是二维的
+        states = states if states.ndim == 2 else states[np.newaxis, :]
+        ctls = ctls if ctls.ndim == 2 else ctls[np.newaxis, :]
+        bases = bases if bases.ndim == 2 else bases[np.newaxis, :]
+        diffs = diffs if diffs.ndim == 2 else diffs[np.newaxis, :]
+        future_states_4 = future_states_4 if future_states_4.ndim == 2 else future_states_4[np.newaxis, :]
+        
         state_norm = self.state_scaler.transform(states)
         control_norm = self.control_scaler.transform(ctls)
         base_norm = self.base_scaler.transform(bases)

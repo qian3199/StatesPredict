@@ -14,6 +14,7 @@ from model import DyTR_LSTM, DyTR_MLP
 from dataset import TimeSeriesDataset
 from trainer import Trainer
 from visualizer import VisualUtils
+from inference import InferModel
 
 logging.basicConfig(
     level=logging.INFO,
@@ -39,6 +40,7 @@ def parse_args():
     parser.add_argument('--early_stopping', action='store_true', help='启用早停机制 (默认: 禁用)')
     parser.add_argument('--patience', type=int, default=20, help='早停耐心值 (默认: 20)')
     parser.add_argument('--min_delta', type=float, default=1e-8, help='早停最小改进阈值 (默认: 1e-8)')
+    parser.add_argument('--inference_files', type=int, default=0, help='推理时使用的文件数量，0表示全部 (默认: 0)')
     return parser.parse_args()
 
 def run_training():
@@ -140,6 +142,67 @@ def run_training():
     
     torch.save(model.state_dict(), f'{model_name.lower()}_model.pth')
     logger.info(f"Model saved to {model_name.lower()}_model.pth")
+    
+    # 运行推理 - 使用 Inference_mul.py 的方式
+    run_inference_mul(output_dir, args)
+
+def run_inference(output_dir, model, dataset, val_files, inference_files=0):
+    """在验证集上运行推理并保存结果"""
+    inference_dir = os.path.join(output_dir, 'inference_result')
+    os.makedirs(inference_dir, exist_ok=True)
+    
+    logger.info(f"Running inference, results will be saved to {inference_dir}")
+    
+    # 创建可视化工具
+    inference_visualizer = VisualUtils(
+        state_names=['vlon', 'vlat', 'yaw', 'omega'],
+        save_dir=inference_dir
+    )
+    
+    # 创建推理模型（不使用物理模型，数据中已包含物理预测）
+    infer_model = InferModel(
+        model=model,
+        state_scaler=dataset.state_scaler,
+        diff_scaler=dataset.diff_scaler,
+        control_scaler=dataset.control_scaler,
+        base_scaler=dataset.base_scaler,
+        phy_model=None,
+        visualizer=inference_visualizer,
+        log_dir=inference_dir
+    )
+    
+    # 在验证集文件上运行推理
+    infer_model.batch_inference(
+        data_dir='./data/left_turn_dataset',
+        output_dir=inference_dir,
+        n_files=inference_files
+    )
+    
+    logger.info(f"Inference completed!")
+
+def run_inference_mul(output_dir, args):
+    """使用 Inference_mul.py 的方式运行推理"""
+    import subprocess
+    
+    inference_dir = os.path.join(output_dir, 'inference_mul')
+    model_path = f'{args.model.lower()}_model.pth'
+    
+    logger.info(f"Running inference_mul, results will be saved to {inference_dir}")
+    
+    cmd = [
+        'python', 'Inference_mul.py',
+        '--output_dir', output_dir,
+        '--model_path', model_path,
+        '--data_dir', args.data_dir,
+        '--max_trips', str(args.inference_files if args.inference_files > 0 else 5),
+        '--start_idx', str(args.hist_len + 5),
+        '--hist_len', str(args.hist_len)
+    ]
+    
+    logger.info(f"Running command: {' '.join(cmd)}")
+    subprocess.run(cmd)
+    
+    logger.info(f"Inference_mul completed! Results saved to {inference_dir}")
 
 if __name__ == "__main__":
     run_training()
