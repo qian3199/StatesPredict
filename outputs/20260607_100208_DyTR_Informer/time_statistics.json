@@ -1,0 +1,28 @@
+{
+  "model_name": "DyTR_Informer",
+  "total_epochs": 2,
+  "total_train_time_s": 51.233514070510864,
+  "total_train_time_min": 0.8538919011751811,
+  "avg_epoch_time_s": 25.615473747253418,
+  "std_epoch_time_s": 0.7250876426696777,
+  "min_epoch_time_s": 24.89038610458374,
+  "max_epoch_time_s": 26.340561389923096,
+  "avg_train_step_time_s": 15.836641669273376,
+  "avg_val_time_s": 3.301600694656372,
+  "num_train_batches": 33,
+  "num_val_batches": 8,
+  "avg_train_time_per_batch_s": 0.4798982324022235,
+  "avg_val_time_per_batch_s": 0.4127000868320465,
+  "epoch_times": [
+    24.89038610458374,
+    26.340561389923096
+  ],
+  "train_step_times": [
+    16.48349952697754,
+    15.189783811569214
+  ],
+  "val_times": [
+    2.7305312156677246,
+    3.8726701736450195
+  ]
+}

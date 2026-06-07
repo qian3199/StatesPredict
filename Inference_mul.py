@@ -49,46 +49,79 @@ class ControlInput(np.ndarray):
         return obj
 
 
-class LateralDynamicBicycle:
+class LinearBicycleModel:
     """
-    运动学自行车模型 (Kinematic Bicycle Model) - 与训练时使用的模型一致
-    状态: [x, y, vx, vy, psi, r]
-    控制: [a, delta]   (a: 纵向加速度, delta: 前轮转角)
+    线性自行车动力学模型 (Linear Dynamic Bicycle Model) - 与训练数据生成时使用的模型一致
+    状态: [x, y, vlon, vlat, yaw, omega]
+    控制: [acc, steering_angle]
     """
-    States = ['x', 'y', 'vx', 'vy', 'psi', 'r']
-    ControlInputs = ['a', 'delta']
+    States = ['x', 'y', 'vlon', 'vlat', 'yaw', 'omega']
+    ControlInputs = ['acc', 'steering_angle']
 
-    def __init__(self, parameters):
-        self.wheelbase = parameters['wheelbase']
-        self.l_f = parameters.get('l_f', self.wheelbase/2)
-        self.l_r = parameters.get('l_r', self.wheelbase/2)
-        self.steering_gear_ratio = parameters.get('steering_gear_ratio', 1.0)
+    def __init__(self, parameters, steer_delay_steps=2, process_noise_std=0.005):
+        self.m = parameters.get('m', 2273.9)
+        self.Iz = parameters.get('i_z', 3057.6)
+        self.lf = parameters.get('l_f', 1.3535)
+        self.lr = parameters.get('l_r', 1.4015)
+        self.Caf = parameters.get('c_af', 54920)
+        self.Car = parameters.get('c_ar', 62190)
+        self.ratio = parameters.get('steering_gear_ratio', 15.6)
+        # 添加训练数据生成时的延迟和噪声
+        self.steer_delay_steps = steer_delay_steps
+        self.steer_history = []
+        self.process_noise_std = process_noise_std
 
-    def State(self, data):
-        return State(data)
+    def forward(self, state, control, dt=0.01):
+        """线性动力学模型更新 - 添加延迟和噪声"""
+        acc, steering_angle = control
 
-    def ControlInput(self, data):
-        return ControlInput(data)
+        # 转向延迟
+        self.steer_history.append(steering_angle)
+        if len(self.steer_history) > self.steer_delay_steps:
+            self.steer_history.pop(0)
+        delayed_steer = np.mean(self.steer_history) if len(self.steer_history) > 0 else steering_angle
 
-    def _dynamics(self, state, control):
-        """运动学模型导数，用于 RK4 积分"""
-        x, y, vx, vy, psi, r = state
-        a, delta = control
-        if abs(vx) < 0.01:
-            vx = 0.01
-        r_desired = vx * np.tan(delta) / self.wheelbase
-        tau = 0.05
-        r_dot = (r_desired - r) / tau
-        vx_dot = a
-        vy_dot = 0.0
-        x_dot = vx * np.cos(psi) - vy * np.sin(psi)
-        y_dot = vx * np.sin(psi) + vy * np.cos(psi)
-        psi_dot = r
-        return np.array([x_dot, y_dot, vx_dot, vy_dot, psi_dot, r_dot])
+        new_control = np.array([acc, delayed_steer])
+
+        # 过程噪声
+        noise = np.random.normal(0, self.process_noise_std, 6)
+        noisy_state = state + noise
+
+        x, y, vlon, vlat, yaw, omega = noisy_state
+        acc_noisy, delta = new_control
+        delta = delta / self.ratio
+
+        beta = np.arctan2(vlat, vlon) if abs(vlon) > 0.01 else 0
+
+        alpha_f = delta - np.arctan2(self.lf * omega + vlat, vlon) if abs(vlon) > 0.01 else 0
+        alpha_r = -np.arctan2(self.lr * omega - vlat, vlon) if abs(vlon) > 0.01 else 0
+
+        Fyf = self.Caf * alpha_f
+        Fyr = self.Car * alpha_r
+
+        d_vlon = (Fyf * np.sin(delta) + self.m * vlat * omega + Fyr * np.sin(beta) - Fyf * np.cos(delta)) / self.m + acc_noisy
+        d_vlat = (-Fyf * np.cos(delta) - Fyr + self.m * vlon * omega) / self.m
+        d_omega = (Fyf * self.lf * np.cos(delta) - Fyr * self.lr) / self.Iz
+
+        vlon_new = vlon + d_vlon * dt
+        vlat_new = vlat + d_vlat * dt
+        omega_new = omega + d_omega * dt
+
+        yaw_new = yaw + omega_new * dt
+
+        v_total = np.sqrt(vlon_new**2 + vlat_new**2)
+        if v_total > 0.01:
+            x_new = x + v_total * np.cos(yaw_new + np.arctan2(vlat_new, vlon_new)) * dt
+            y_new = y + v_total * np.sin(yaw_new + np.arctan2(vlat_new, vlon_new)) * dt
+        else:
+            x_new = x + vlon_new * np.cos(yaw_new) * dt
+            y_new = y + vlon_new * np.sin(yaw_new) * dt
+
+        return np.array([x_new, y_new, vlon_new, vlat_new, yaw_new, omega_new])
 
     def simulate(self, initial_state, control_input, n=1, dt=0.01):
         """
-        使用 4 阶 Runge-Kutta 积分 n 步
+        使用动力学模型积分 n 步
         initial_state: (6,) 或 (6,1)
         control_input: (2,) 或 (2,1)
         return: traj (6, n+1), success
@@ -111,11 +144,7 @@ class LateralDynamicBicycle:
             delta = ctrl[1, 0] if ctrl.shape[1] == 1 else ctrl[1, step]
             control = np.array([a, delta])
 
-            k1 = self._dynamics(cur, control)
-            k2 = self._dynamics(cur + 0.5*dt*k1, control)
-            k3 = self._dynamics(cur + 0.5*dt*k2, control)
-            k4 = self._dynamics(cur + dt*k3, control)
-            next_state = cur + dt * (k1 + 2*k2 + 2*k3 + k4) / 6
+            next_state = self.forward(cur, control, dt)
             traj[:, step+1] = next_state
 
         return traj, True
@@ -140,12 +169,15 @@ class InferModel:
         self.control_name = control_name
         self.model_flag = model_flag
         phy_params = {
-            'wheelbase': Gen4CarConfig.wheel_base,
+            'm': Gen4CarConfig.mass,
+            'i_z': Gen4CarConfig.inertial_z,
             'l_f': Gen4CarConfig.base_to_fa,
             'l_r': Gen4CarConfig.base_to_ra,
+            'c_af': Gen4CarConfig.front_corner_stiffness,
+            'c_ar': Gen4CarConfig.rear_corner_stiffness,
             'steering_gear_ratio': Gen4CarConfig.steering_gear_ratio
         }
-        self.phy_model = LateralDynamicBicycle(phy_params)
+        self.phy_model = LinearBicycleModel(phy_params)
         net_model = self.load_trained_model(model_path, model_config, device)
         self.model = net_model.to(device)
         self.model.eval()
@@ -300,44 +332,29 @@ class InferModel:
 
 
     def predict_physics_single_step(self, current_states, current_control, xy_data_t):
-        control_T = current_control[-1, :].T.reshape(-1, 1)
-        current_states_T = current_states[-1, :].T.reshape(-1, 1)
-        xy_data_T = xy_data_t.T
-
-        # 提取当前状态 (vlon, vlat, yaw, vyaw)
-        vlon, vlat, yaw, vyaw = current_states_T[:4, :].flatten()
-        # 转换为 LateralDynamicBicycle 需要的 6D 状态: [x, y, vx, vy, psi, r]
-        x, y = xy_data_T[0, 0], xy_data_T[1, 0]
-        vx = vlon * np.cos(yaw) - vlat * np.sin(yaw)
-        vy = vlon * np.sin(yaw) + vlat * np.cos(yaw)
-        psi = yaw
-        r = vyaw
-        initial_state_6d = np.array([x, y, vx, vy, psi, r])
+        """使用线性动力学模型进行单步预测"""
+        # 提取当前状态和控制
+        vlon, vlat, yaw, vyaw = current_states[-1, :4]
+        x, y = xy_data_t[-1, 0], xy_data_t[-1, 1]
+        acc, angle = current_control[-1, :2]
         
-        # 提取控制量 (acc, angle) -> 转换为 (a, delta)
-        acc, angle = control_T[:2, :].flatten()
-        delta = angle / self.phy_model.steering_gear_ratio
-        control_input = np.array([acc, delta])
+        # 构造动力学模型的状态: [x, y, vlon, vlat, yaw, omega]
+        state_6d = np.array([x, y, vlon, vlat, yaw, vyaw])
+        control = np.array([acc, angle])
         
-        # 调用物理模型模拟一步 (n=1)
-        traj_6d, success = self.phy_model.simulate(initial_state_6d, control_input, n=1, dt=self.dt)
+        # 调用动力学模型模拟一步
+        traj_6d, success = self.phy_model.simulate(state_6d, control, n=1, dt=self.dt)
         
-        # 提取下一时刻的 6D 状态并转换回 4D (vlon, vlat, yaw, vyaw)
+        # 提取下一时刻的状态
         next_state_6d = traj_6d[:, 1]
-        next_x, next_y, next_vx, next_vy, next_psi, next_r = next_state_6d
-        
-        # 转换回车体坐标系
-        next_vlon = next_vx * np.cos(next_psi) + next_vy * np.sin(next_psi)
-        next_vlat = -next_vx * np.sin(next_psi) + next_vy * np.cos(next_psi)
-        next_yaw = next_psi
-        next_vyaw = next_r
+        next_x, next_y, next_vlon, next_vlat, next_yaw, next_vyaw = next_state_6d
         
         # 计算加速度
         acc_lon = (next_vlon - vlon) / self.dt
         acc_lat = (next_vlat - vlat) / self.dt
         acc_yaw = (next_vyaw - vyaw) / self.dt
         
-        # 组合输出
+        # 组合输出 (4D状态 + 3D加速度)
         physics_next = np.array([next_vlon, next_vlat, next_yaw, next_vyaw])
         xy_data_t = np.array([[next_x, next_y]])
         phy_pred = np.concatenate([

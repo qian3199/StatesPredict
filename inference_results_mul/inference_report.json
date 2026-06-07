@@ -1,37 +1,85 @@
 {
-  "timestamp": "2026-06-06 23:24:36",
-  "n_trips": 1,
-  "total_time": 19.21808886528015,
-  "avg_inference_time": 19.21808886528015,
+  "timestamp": "2026-06-07 09:48:31",
+  "n_trips": 4,
+  "total_time": 41.29444909095764,
+  "avg_inference_time": 10.323362052440643,
   "params": {
     "start_idx": 20,
     "hist_len": 15
   },
   "summary": {
-    "physics_state_rmse": 2.426270349606164,
-    "hybrid_state_rmse": 2.850678894111276,
-    "state_improvement": -17.492219882833847,
-    "physics_xy_rmse": 4.463692708568459,
-    "hybrid_xy_rmse": 3.2718187352355623,
-    "xy_improvement": 26.70152385366913,
-    "avg_samples_per_second": 28.358699130828235
+    "physics_state_rmse": 2.540046309736815,
+    "hybrid_state_rmse": 191951.51683615462,
+    "state_improvement": -8967564.259682804,
+    "physics_xy_rmse": 6.102193523286889,
+    "hybrid_xy_rmse": 7535.917339357764,
+    "xy_improvement": -471884.99268131104,
+    "avg_samples_per_second": 53.68890456273056
   },
   "trip_details": [
     {
+      "trip_id": "trip_0497",
+      "n_samples": 552,
+      "inference_time": 8.401360511779785,
+      "pred_samples": 517,
+      "phy_state_rmse": 1.5039018086333493,
+      "phy_state_mse": 15.832044550074615,
+      "phy_xy_rmse": 0.8506562799097961,
+      "phy_xy_mse": 0.7236161065499734,
+      "hyb_state_rmse": 291650.61835129804,
+      "hyb_state_mse": 595420582292.8616,
+      "state_improvement": -19392829.556772836,
+      "hyb_xy_rmse": 14161.277045468196,
+      "hyb_xy_mse": 200541767.55850443,
+      "xy_improvement": -1664647.2522003674
+    },
+    {
+      "trip_id": "trip_0498",
+      "n_samples": 586,
+      "inference_time": 8.986242532730103,
+      "pred_samples": 551,
+      "phy_state_rmse": 3.169534694526271,
+      "phy_state_mse": 70.32165125864019,
+      "phy_xy_rmse": 10.296614239226068,
+      "phy_xy_mse": 106.02026479143302,
+      "hyb_state_rmse": 191217.58016325274,
+      "hyb_state_mse": 255949140744.43002,
+      "state_improvement": -6032885.866773507,
+      "hyb_xy_rmse": 5577.989489670038,
+      "hyb_xy_mse": 31113966.74686941,
+      "xy_improvement": -54073.04523675444
+    },
+    {
+      "trip_id": "trip_0499",
+      "n_samples": 534,
+      "inference_time": 10.982678174972534,
+      "pred_samples": 499,
+      "phy_state_rmse": 3.060478386181475,
+      "phy_state_mse": 65.56569566598775,
+      "phy_xy_rmse": 8.797810865443232,
+      "phy_xy_mse": 77.40147602411099,
+      "hyb_state_rmse": 152106.06779481008,
+      "hyb_state_mse": 161953791019.99548,
+      "state_improvement": -4969909.541044043,
+      "hyb_xy_rmse": 5805.268229350201,
+      "hyb_xy_mse": 33701139.21470282,
+      "xy_improvement": -65885.37202194937
+    },
+    {
       "trip_id": "trip_0500",
       "n_samples": 545,
-      "inference_time": 19.21808886528015,
+      "inference_time": 12.923166990280151,
       "pred_samples": 510,
       "phy_state_rmse": 2.426270349606164,
       "phy_state_mse": 41.20751466564612,
       "phy_xy_rmse": 4.463692708568459,
       "phy_xy_mse": 19.924552596527224,
-      "hyb_state_rmse": 2.850678894111276,
-      "hyb_state_mse": 56.884591101320396,
-      "state_improvement": -17.492219882833847,
-      "hyb_xy_rmse": 3.2718187352355623,
-      "hyb_xy_mse": 10.704797836238434,
-      "xy_improvement": 26.70152385366913
+      "hyb_state_rmse": 132831.80103525767,
+      "hyb_state_mse": 123510011563.89197,
+      "state_improvement": -5474632.074140836,
+      "hyb_xy_rmse": 4599.134592942622,
+      "hyb_xy_mse": 21152039.00400149,
+      "xy_improvement": -102934.30126617296
     }
   ]
 }

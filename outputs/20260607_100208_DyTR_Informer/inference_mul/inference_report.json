@@ -1,0 +1,85 @@
+{
+  "timestamp": "2026-06-07 10:04:46",
+  "n_trips": 4,
+  "total_time": 71.24923086166382,
+  "avg_inference_time": 17.812058448791504,
+  "params": {
+    "start_idx": 20,
+    "hist_len": 15
+  },
+  "summary": {
+    "physics_state_rmse": 2.540046309736815,
+    "hybrid_state_rmse": 42794.28300501275,
+    "state_improvement": -1897852.0589017584,
+    "physics_xy_rmse": 6.102193523286889,
+    "hybrid_xy_rmse": 1527.2529836792962,
+    "xy_improvement": -51197.814605321284,
+    "avg_samples_per_second": 31.11656081712466
+  },
+  "trip_details": [
+    {
+      "trip_id": "trip_0497",
+      "n_samples": 552,
+      "inference_time": 18.154174089431763,
+      "pred_samples": 517,
+      "phy_state_rmse": 1.5039018086333493,
+      "phy_state_mse": 15.832044550074615,
+      "phy_xy_rmse": 0.8506562799097961,
+      "phy_xy_mse": 0.7236161065499734,
+      "hyb_state_rmse": 49592.454679238865,
+      "hyb_state_mse": 17215880927.78653,
+      "state_improvement": -3297485.945741055,
+      "hyb_xy_rmse": 1233.8929738678326,
+      "hyb_xy_mse": 1522491.870960404,
+      "xy_improvement": -144951.88558634694
+    },
+    {
+      "trip_id": "trip_0498",
+      "n_samples": 586,
+      "inference_time": 18.260533809661865,
+      "pred_samples": 551,
+      "phy_state_rmse": 3.169534694526271,
+      "phy_state_mse": 70.32165125864019,
+      "phy_xy_rmse": 10.296614239226068,
+      "phy_xy_mse": 106.02026479143302,
+      "hyb_state_rmse": 38711.321882853284,
+      "hyb_state_mse": 10489965093.425129,
+      "state_improvement": -1221256.6221473152,
+      "hyb_xy_rmse": 3095.1609915955387,
+      "hyb_xy_mse": 9580021.563894678,
+      "xy_improvement": -29959.98787255899
+    },
+    {
+      "trip_id": "trip_0499",
+      "n_samples": 534,
+      "inference_time": 16.806915044784546,
+      "pred_samples": 499,
+      "phy_state_rmse": 3.060478386181475,
+      "phy_state_mse": 65.56569566598775,
+      "phy_xy_rmse": 8.797810865443232,
+      "phy_xy_mse": 77.40147602411099,
+      "hyb_state_rmse": 40136.670738286455,
+      "hyb_state_mse": 11276666365.675339,
+      "state_improvement": -1311350.880343074,
+      "hyb_xy_rmse": 887.6872087016196,
+      "hyb_xy_mse": 787988.5804924729,
+      "xy_improvement": -9989.864652448381
+    },
+    {
+      "trip_id": "trip_0500",
+      "n_samples": 545,
+      "inference_time": 18.026610851287842,
+      "pred_samples": 510,
+      "phy_state_rmse": 2.426270349606164,
+      "phy_state_mse": 41.20751466564612,
+      "phy_xy_rmse": 4.463692708568459,
+      "phy_xy_mse": 19.924552596527224,
+      "hyb_state_rmse": 42736.68471967239,
+      "hyb_state_mse": 12784969545.800756,
+      "state_improvement": -1761314.7873755898,
+      "hyb_xy_rmse": 892.2707605521936,
+      "hyb_xy_mse": 796147.11013639,
+      "xy_improvement": -19889.520309930827
+    }
+  ]
+}

@@ -763,11 +763,21 @@ class Trainer:
         # 保存为CSV格式（epoch级别）
         try:
             import pandas as pd
+            # 确保所有数组长度一致
+            val_times_filled = []
+            if self.val_times:
+                val_times_filled = self.val_times[:epochs]  # 截断或保持
+                # 如果长度不够，用最后一个值填充
+                while len(val_times_filled) < epochs:
+                    val_times_filled.append(val_times_filled[-1] if val_times_filled else 0)
+            else:
+                val_times_filled = [0] * epochs
+                
             epoch_stats_df = {
                 'epoch': np.arange(epochs),
-                'epoch_time_s': self.epoch_times,
-                'train_step_time_s': self.train_step_times,
-                'val_time_s': self.val_times if self.val_times else [0] * epochs
+                'epoch_time_s': self.epoch_times[:epochs],
+                'train_step_time_s': self.train_step_times[:epochs],
+                'val_time_s': val_times_filled
             }
             df = pd.DataFrame(epoch_stats_df)
             csv_path = os.path.join(self.log_dir, 'epoch_time_statistics.csv')

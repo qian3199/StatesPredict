@@ -1,0 +1,28 @@
+{
+  "model_name": "DyTR_MLP",
+  "total_epochs": 2,
+  "total_train_time_s": 18.026567220687866,
+  "total_train_time_min": 0.30044278701146443,
+  "avg_epoch_time_s": 9.013283610343933,
+  "std_epoch_time_s": 0.13844454288482666,
+  "min_epoch_time_s": 8.874839067459106,
+  "max_epoch_time_s": 9.15172815322876,
+  "avg_train_step_time_s": 5.495572328567505,
+  "avg_val_time_s": 1.2200573682785034,
+  "num_train_batches": 33,
+  "num_val_batches": 8,
+  "avg_train_time_per_batch_s": 0.1665324948050759,
+  "avg_val_time_per_batch_s": 0.15250717103481293,
+  "epoch_times": [
+    9.15172815322876,
+    8.874839067459106
+  ],
+  "train_step_times": [
+    5.52706241607666,
+    5.46408224105835
+  ],
+  "val_times": [
+    1.2284741401672363,
+    1.2116405963897705
+  ]
+}

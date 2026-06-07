@@ -7,10 +7,11 @@ import pickle
 import logging
 import matplotlib
 import argparse
+from datetime import datetime
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-from model import DyTR_LSTM, DyTR_MLP
+from model import DyTR_LSTM, DyTR_MLP, DyTR_Informer
 from dataset import TimeSeriesDataset
 from trainer import Trainer
 from visualizer import VisualUtils
@@ -25,8 +26,8 @@ logger = logging.getLogger(__name__)
 
 def parse_args():
     parser = argparse.ArgumentParser(description='DyTR 训练脚本')
-    parser.add_argument('--model', type=str, default='lstm', choices=['lstm', 'mlp'], 
-                        help='选择模型类型: lstm 或 mlp (默认: lstm)')
+    parser.add_argument('--model', type=str, default='lstm', choices=['lstm', 'mlp', 'informer'], 
+                        help='选择模型类型: lstm, mlp 或 informer (默认: lstm)')
     parser.add_argument('--epochs', type=int, default=50, help='训练轮数 (默认: 50)')
     parser.add_argument('--n_files', type=int, default=500, help='使用的文件数量 (默认: 500)')
     parser.add_argument('--batch_size', type=int, default=128, help='批次大小 (默认: 128)')
@@ -54,6 +55,9 @@ def run_training():
     elif model_type == 'mlp':
         ModelClass = DyTR_MLP
         model_name = 'DyTR_MLP'
+    elif model_type == 'informer':
+        ModelClass = DyTR_Informer
+        model_name = 'DyTR_Informer'
     else:
         raise ValueError(f"未知模型类型: {model_type}")
     
@@ -216,7 +220,8 @@ def run_inference_mul(output_dir, args):
     import subprocess
     
     inference_dir = os.path.join(output_dir, 'inference_mul')
-    model_path = f'{args.model.lower()}_model.pth'
+    # 使用与训练保存一致的模型文件名（dytr_xxx_model.pth）
+    model_path = f'dytr_{args.model.lower()}_model.pth'
     
     logger.info(f"Running inference_mul, results will be saved to {inference_dir}")
     
