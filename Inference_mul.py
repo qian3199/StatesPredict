@@ -6,11 +6,20 @@ import glob
 import pickle
 import joblib
 from scipy import signal
+from scipy.signal import butter, filtfilt
 import sys
 import argparse
 import time
 from datetime import datetime
 import json
+
+def butter_lowpass_filter(data, cutoff_freq, fs=100, order=1):
+    """低通滤波器 - 与训练数据生成时使用的一致"""
+    nyq = 0.5 * fs
+    normal_cutoff = cutoff_freq / nyq
+    b, a = butter(order, normal_cutoff, btype='low', analog=False)
+    y = filtfilt(b, a, data)
+    return y
 
 from model import DyTR_LSTM
 from InferVisualizer import InferVisualizer
@@ -397,6 +406,22 @@ class InferModel:
         if physics_states.shape[1] > 2:
             tmp_norm_angles = self.normalize_angle_sequence(physics_states[:, 2])
             physics_states[:, 2] = tmp_norm_angles.flatten()
+        
+        # 添加低通滤波 - 与训练数据生成时保持一致
+        fs = 1.0 / self.dt  # 采样频率
+        cutoff_freq = 0.01   # 截止频率
+        # physics_states 的格式: [vlon, vlat, yaw, omega, acc_lon, acc_lat, acc_yaw]
+        if physics_states.shape[1] >= 4:
+            # 对状态量进行滤波 (vlon, vlat, yaw, omega)
+            physics_states[:, 0] = butter_lowpass_filter(physics_states[:, 0], cutoff_freq, fs, order=1)
+            physics_states[:, 1] = butter_lowpass_filter(physics_states[:, 1], cutoff_freq, fs, order=1)
+            physics_states[:, 2] = butter_lowpass_filter(physics_states[:, 2], cutoff_freq, fs, order=1)
+            physics_states[:, 3] = butter_lowpass_filter(physics_states[:, 3], cutoff_freq, fs, order=1)
+            # 对加速度进行滤波
+            if physics_states.shape[1] >= 7:
+                physics_states[:, 4] = butter_lowpass_filter(physics_states[:, 4], cutoff_freq, fs, order=1)
+                physics_states[:, 5] = butter_lowpass_filter(physics_states[:, 5], cutoff_freq, fs, order=1)
+                physics_states[:, 6] = butter_lowpass_filter(physics_states[:, 6], cutoff_freq, fs, order=1)
         
         return physics_states, np.array(physics_xy)
 
