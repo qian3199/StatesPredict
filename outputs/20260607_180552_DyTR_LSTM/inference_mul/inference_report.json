@@ -1,0 +1,101 @@
+{
+  "timestamp": "2026-06-07 18:08:57",
+  "n_trips": 5,
+  "total_time": 60.54086947441101,
+  "avg_inference_time": 12.107766342163085,
+  "params": {
+    "start_idx": 20,
+    "hist_len": 15
+  },
+  "summary": {
+    "physics_state_rmse": 0.5319364896707486,
+    "hybrid_state_rmse": NaN,
+    "state_improvement": NaN,
+    "physics_xy_rmse": 1.2406075089049018,
+    "hybrid_xy_rmse": NaN,
+    "xy_improvement": NaN,
+    "avg_samples_per_second": 45.26020609529687
+  },
+  "trip_details": [
+    {
+      "trip_id": "trip_0496",
+      "n_samples": 523,
+      "inference_time": 12.618855953216553,
+      "pred_samples": 488,
+      "phy_state_rmse": 0.5224719384469195,
+      "phy_state_mse": 1.9108384852513713,
+      "phy_xy_rmse": 1.0725356970149635,
+      "phy_xy_mse": 1.1503328213713737,
+      "hyb_state_rmse": NaN,
+      "hyb_state_mse": NaN,
+      "state_improvement": NaN,
+      "hyb_xy_rmse": NaN,
+      "hyb_xy_mse": NaN,
+      "xy_improvement": NaN
+    },
+    {
+      "trip_id": "trip_0497",
+      "n_samples": 552,
+      "inference_time": 11.93165898323059,
+      "pred_samples": 517,
+      "phy_state_rmse": 0.7469369246698176,
+      "phy_state_mse": 3.9054033860464346,
+      "phy_xy_rmse": 2.6467421629355057,
+      "phy_xy_mse": 7.00524407706052,
+      "hyb_state_rmse": NaN,
+      "hyb_state_mse": NaN,
+      "state_improvement": NaN,
+      "hyb_xy_rmse": NaN,
+      "hyb_xy_mse": NaN,
+      "xy_improvement": NaN
+    },
+    {
+      "trip_id": "trip_0498",
+      "n_samples": 586,
+      "inference_time": 12.527015447616577,
+      "pred_samples": 551,
+      "phy_state_rmse": 0.6375167394065758,
+      "phy_state_mse": 2.8449931511651427,
+      "phy_xy_rmse": 0.9869124641187096,
+      "phy_xy_mse": 0.9739962118328633,
+      "hyb_state_rmse": NaN,
+      "hyb_state_mse": NaN,
+      "state_improvement": NaN,
+      "hyb_xy_rmse": NaN,
+      "hyb_xy_mse": NaN,
+      "xy_improvement": NaN
+    },
+    {
+      "trip_id": "trip_0499",
+      "n_samples": 534,
+      "inference_time": 12.202141761779785,
+      "pred_samples": 499,
+      "phy_state_rmse": 0.3622350370506416,
+      "phy_state_mse": 0.918499554469558,
+      "phy_xy_rmse": 0.2929057938134677,
+      "phy_xy_mse": 0.08579380404949766,
+      "hyb_state_rmse": NaN,
+      "hyb_state_mse": NaN,
+      "state_improvement": NaN,
+      "hyb_xy_rmse": NaN,
+      "hyb_xy_mse": NaN,
+      "xy_improvement": NaN
+    },
+    {
+      "trip_id": "trip_0500",
+      "n_samples": 545,
+      "inference_time": 11.259159564971924,
+      "pred_samples": 510,
+      "phy_state_rmse": 0.3905218087797884,
+      "phy_state_mse": 1.0675509819284639,
+      "phy_xy_rmse": 1.2039414266418629,
+      "phy_xy_mse": 1.449474958784444,
+      "hyb_state_rmse": NaN,
+      "hyb_state_mse": NaN,
+      "state_improvement": NaN,
+      "hyb_xy_rmse": NaN,
+      "hyb_xy_mse": NaN,
+      "xy_improvement": NaN
+    }
+  ]
+}
