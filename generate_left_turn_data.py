@@ -79,7 +79,7 @@ class LinearBicycleModel:
 
 
 class BicycleModelWithNoise(LinearBicycleModel):
-    def __init__(self, m=2273.9, Iz=3057.6, lf=1.3535, lr=1.4015, Caf=54920, Car=62190, ratio=15.6, steer_delay_steps=2, process_noise_std=0.005):
+    def __init__(self, m=2273.9, Iz=3057.6, lf=1.3535, lr=1.4015, Caf=54920, Car=62190, ratio=15.6, steer_delay_steps=2, process_noise_std=0.0005):
         super().__init__(m, Iz, lf, lr, Caf, Car, ratio)
         self.steer_delay_steps = steer_delay_steps
         self.steer_history = []
@@ -95,7 +95,11 @@ class BicycleModelWithNoise(LinearBicycleModel):
 
         new_control = np.array([acc, delayed_steer])
 
-        noise = np.random.normal(0, self.process_noise_std, 6)
+        # 减小噪声，只对速度和角速度添加小噪声
+        noise = np.zeros(6)
+        noise[2] = np.random.normal(0, self.process_noise_std)  # vlon
+        noise[3] = np.random.normal(0, self.process_noise_std)  # vlat
+        noise[5] = np.random.normal(0, self.process_noise_std)  # omega
         noisy_state = state + noise
 
         result = super().forward(noisy_state, new_control, dt)
@@ -149,13 +153,13 @@ def generate_single_left_turn(trip_id, dt=0.01, random_seed=None):
             controls[i, 0] = accel_val
             controls[i, 1] = 0.0
 
-    m_perturbed = 2273.9 * np.random.uniform(0.95, 1.05)
-    Iz_perturbed = 3057.6 * np.random.uniform(0.95, 1.05)
-    Caf_perturbed = 54920 * np.random.uniform(0.9, 1.1)
-    Car_perturbed = 62190 * np.random.uniform(0.9, 1.1)
+    m_perturbed = 2273.9 * np.random.uniform(0.98, 1.02)
+    Iz_perturbed = 3057.6 * np.random.uniform(0.98, 1.02)
+    Caf_perturbed = 54920 * np.random.uniform(0.95, 1.05)
+    Car_perturbed = 62190 * np.random.uniform(0.95, 1.05)
 
-    steer_delay = np.random.randint(1, 4)
-    process_noise = np.random.uniform(0.001, 0.01)
+    steer_delay = np.random.randint(1, 3)
+    process_noise = np.random.uniform(0.0001, 0.001)
 
     real_model = BicycleModelWithNoise(
         m=m_perturbed,

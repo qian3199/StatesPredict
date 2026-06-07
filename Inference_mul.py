@@ -67,7 +67,7 @@ class LinearBicycleModel:
     States = ['x', 'y', 'vlon', 'vlat', 'yaw', 'omega']
     ControlInputs = ['acc', 'steering_angle']
 
-    def __init__(self, parameters, steer_delay_steps=2, process_noise_std=0.005):
+    def __init__(self, parameters, steer_delay_steps=2, process_noise_std=0.0005):
         self.m = parameters.get('m', 2273.9)
         self.Iz = parameters.get('i_z', 3057.6)
         self.lf = parameters.get('l_f', 1.3535)
@@ -92,8 +92,11 @@ class LinearBicycleModel:
 
         new_control = np.array([acc, delayed_steer])
 
-        # 过程噪声
-        noise = np.random.normal(0, self.process_noise_std, 6)
+        # 过程噪声 - 与训练数据生成时保持一致，只对速度和角速度添加小噪声
+        noise = np.zeros(6)
+        noise[2] = np.random.normal(0, self.process_noise_std)  # vlon
+        noise[3] = np.random.normal(0, self.process_noise_std)  # vlat
+        noise[5] = np.random.normal(0, self.process_noise_std)  # omega
         noisy_state = state + noise
 
         x, y, vlon, vlat, yaw, omega = noisy_state
