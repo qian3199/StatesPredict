@@ -1,1 +1,1 @@
-./outputs/20260607_180552_DyTR_LSTM
+./outputs/20260608_103120_DyTR_Informer

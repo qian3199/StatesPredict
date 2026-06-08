@@ -1,0 +1,85 @@
+{
+  "timestamp": "2026-06-08 10:32:25",
+  "n_trips": 4,
+  "total_time": 30.31020498275757,
+  "avg_inference_time": 7.5727750062942505,
+  "params": {
+    "start_idx": 20,
+    "hist_len": 15
+  },
+  "summary": {
+    "physics_state_rmse": 0.5852413473245558,
+    "hybrid_state_rmse": NaN,
+    "state_improvement": NaN,
+    "physics_xy_rmse": 1.2734666186390047,
+    "hybrid_xy_rmse": NaN,
+    "xy_improvement": NaN,
+    "avg_samples_per_second": 73.18981476926555
+  },
+  "trip_details": [
+    {
+      "trip_id": "trip_0497",
+      "n_samples": 552,
+      "inference_time": 8.027588605880737,
+      "pred_samples": 517,
+      "phy_state_rmse": 0.7179542851680311,
+      "phy_state_mse": 3.60820848913797,
+      "phy_xy_rmse": 1.5534642157761782,
+      "phy_xy_mse": 2.4132510696970964,
+      "hyb_state_rmse": NaN,
+      "hyb_state_mse": NaN,
+      "state_improvement": NaN,
+      "hyb_xy_rmse": NaN,
+      "hyb_xy_mse": NaN,
+      "xy_improvement": NaN
+    },
+    {
+      "trip_id": "trip_0498",
+      "n_samples": 586,
+      "inference_time": 7.601040601730347,
+      "pred_samples": 551,
+      "phy_state_rmse": 0.7681753743028481,
+      "phy_state_mse": 4.130653839797246,
+      "phy_xy_rmse": 1.7446784990331738,
+      "phy_xy_mse": 3.043903064988648,
+      "hyb_state_rmse": NaN,
+      "hyb_state_mse": NaN,
+      "state_improvement": NaN,
+      "hyb_xy_rmse": NaN,
+      "hyb_xy_mse": NaN,
+      "xy_improvement": NaN
+    },
+    {
+      "trip_id": "trip_0499",
+      "n_samples": 534,
+      "inference_time": 7.333465576171875,
+      "pred_samples": 499,
+      "phy_state_rmse": 0.45355457554186035,
+      "phy_state_mse": 1.4399822709646999,
+      "phy_xy_rmse": 1.13276036511594,
+      "phy_xy_mse": 1.2831460447775973,
+      "hyb_state_rmse": NaN,
+      "hyb_state_mse": NaN,
+      "state_improvement": NaN,
+      "hyb_xy_rmse": NaN,
+      "hyb_xy_mse": NaN,
+      "xy_improvement": NaN
+    },
+    {
+      "trip_id": "trip_0500",
+      "n_samples": 545,
+      "inference_time": 7.329005241394043,
+      "pred_samples": 510,
+      "phy_state_rmse": 0.4012811542854834,
+      "phy_state_mse": 1.1271859534928295,
+      "phy_xy_rmse": 0.662963394630727,
+      "phy_xy_mse": 0.439520462620297,
+      "hyb_state_rmse": NaN,
+      "hyb_state_mse": NaN,
+      "state_improvement": NaN,
+      "hyb_xy_rmse": NaN,
+      "hyb_xy_mse": NaN,
+      "xy_improvement": NaN
+    }
+  ]
+}

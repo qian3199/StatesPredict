@@ -17,7 +17,6 @@ class TimeSeriesDataset(Dataset):
         self.control_indices = [0, 1]
         self.base_indices = [2, 3, 4, 5]
         self.pos_indices = [0, 1]
-        self.dt = 0.01  # 时间步长
 
         self.state_scaler = StandardScaler()
         self.control_scaler = StandardScaler()
@@ -93,57 +92,14 @@ class TimeSeriesDataset(Dataset):
 
         real_states = trip_data['real_states'][window_start:hist_end, :]
         future_states = trip_data['real_states'][hist_end:pred_end, :]
-        hist_controls = trip_data['controls'][window_start:hist_end, :]
-        future_controls = trip_data['controls'][hist_end:pred_end, :]
+        controls = trip_data['controls'][window_start:hist_end, :]
         
-        # 提取最后的历史状态 [x, y, vlon, vlat, yaw, omega] - 对应索引 [0, 1, 2, 3, 4, 5]
-        last_hist_state = real_states[-1, :6]  # 只取前6列
+        last_state = real_states[-1, self.state_indices]  # [vlon, vlat, yaw, omega]
+        base_states = np.tile(last_state, (self.pred_len, 1))  # 匀速假设：保持最后状态
         
-        # 使用运动学模型预测未来状态
-        if len(future_controls) > 0:
-            base_states = self._predict_with_kinematic_model(last_hist_state, future_controls)
-        else:
-            # 如果没有未来控制，保持最后状态
-            base_states = np.tile(last_hist_state[2:6], (self.pred_len, 1))
-        
-        future_pos = future_states[:, :2]  # [x, y] 未来位置
+        future_pos = future_states[:, self.pos_indices]  # [x, y] 未来位置
 
-        return real_states, future_states, hist_controls, base_states, future_pos
-    
-    def _predict_with_kinematic_model(self, initial_state, controls):
-        """
-        使用运动学模型预测未来状态
-        initial_state: [x, y, vlon, vlat, yaw, omega]
-        controls: [acc, steering_angle] 序列
-        返回: 预测的状态序列 [vlon, vlat, yaw, omega]
-        """
-        n_steps = len(controls)
-        predictions = np.zeros((n_steps, 4))  # [vlon, vlat, yaw, omega]
-        
-        # 初始状态
-        x, y, vlon, vlat, yaw, omega = initial_state
-        
-        for i in range(n_steps):
-            acc, steering_angle = controls[i]
-            
-            # 运动学更新
-            # 速度更新
-            vlon_new = vlon + acc * self.dt
-            vlat_new = vlat + vlon * omega * self.dt  # 简化的侧向速度更新
-            
-            # 角速度更新（简化模型）
-            omega_new = omega  # 保持角速度不变（或使用转向角计算）
-            
-            # 航向角更新
-            yaw_new = yaw + omega * self.dt
-            
-            # 保存预测的状态分量
-            predictions[i] = [vlon_new, vlat_new, yaw_new, omega_new]
-            
-            # 更新状态
-            vlon, vlat, yaw, omega = vlon_new, vlat_new, yaw_new, omega_new
-        
-        return predictions
+        return real_states, future_states, controls, base_states, future_pos
 
     def __len__(self):
         return len(self.windows)
