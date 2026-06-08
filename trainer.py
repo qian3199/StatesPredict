@@ -763,6 +763,13 @@ class Trainer:
         # 保存为CSV格式（epoch级别）
         try:
             import pandas as pd
+            
+            # 填充验证时间数据，确保长度与epochs一致
+            if len(self.val_times) < epochs:
+                val_times_filled = list(self.val_times) + [0.0] * (epochs - len(self.val_times))
+            else:
+                val_times_filled = self.val_times[:epochs]
+            
             epoch_stats_df = {
                 'epoch': np.arange(epochs),
                 'epoch_time_s': self.epoch_times[:epochs],
